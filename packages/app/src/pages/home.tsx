@@ -1,4 +1,6 @@
+import { createMemo } from "solid-js"
 import { ScrollView } from "@opencode-ai/ui/scroll-view"
+import { MAX_HOME_PROJECTS_WIDTH } from "@/context/layout"
 import { createHomeController } from "./home/home-controller"
 import { createHomeProjectsController } from "./home/home-projects-controller"
 import { HomeUtilityNav } from "./home/home-projects-view"
@@ -14,6 +16,11 @@ export function NewHome() {
   const sessions = createHomeSessionsController(home)
   const search = createHomeSessionSearchController(home, sessions)
   const scroll = createHomeScrollController(sessions.data.groups)
+  const maxProjectsWidth = createMemo(() =>
+    typeof window !== "undefined"
+      ? Math.min(MAX_HOME_PROJECTS_WIDTH, Math.max(300, window.innerWidth - 480))
+      : MAX_HOME_PROJECTS_WIDTH,
+  )
   return (
     <div
       class={`
@@ -31,11 +38,14 @@ export function NewHome() {
       >
         <div
           class={`
-            mx-auto grid min-h-full w-full max-w-[1080px] grid-rows-[auto_minmax(0,1fr)_auto] gap-4 px-3
-            lg:grid-cols-[280px_minmax(0,720px)] lg:grid-rows-1 lg:gap-8 lg:px-6
+            home-content-grid mx-auto grid min-h-full w-full grid-rows-[auto_minmax(0,1fr)_auto] gap-4 px-3
+            lg:grid-rows-1 lg:gap-8 lg:px-6
           `}
+          style={{
+            "--home-projects-width": `${home.projectsWidth()}px`,
+          }}
         >
-          <HomeProjects projects={projects} scroll={scroll} />
+          <HomeProjects projects={projects} scroll={scroll} maxProjectsWidth={maxProjectsWidth} />
           <HomeSessions sessions={sessions} search={search} scroll={scroll} />
           <HomeUtilityNav
             class="flex lg:hidden"

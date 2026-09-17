@@ -6,12 +6,20 @@ import { AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/d
 import { RestrictToVerticalAxis } from "@dnd-kit/abstract/modifiers"
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { ScrollView } from "@opencode-ai/ui/scroll-view"
+import { ResizeHandle } from "@opencode-ai/ui/resize-handle"
 import { ProjectAvatar } from "@opencode-ai/ui/v2/project-avatar-v2"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
-import { getProjectAvatarVariant, type HomeProjectSelection, type LocalProject } from "@/context/layout"
+import {
+  DEFAULT_HOME_PROJECTS_WIDTH,
+  getProjectAvatarVariant,
+  type HomeProjectSelection,
+  type LocalProject,
+  MAX_HOME_PROJECTS_WIDTH,
+  MIN_HOME_PROJECTS_WIDTH,
+} from "@/context/layout"
 import { ServerConnection } from "@/context/server"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
@@ -34,6 +42,10 @@ export type HomeProjectsViewProps = {
   recentlyClosed: Accessor<LocalProject[]>
   selection: Accessor<HomeProjectSelection>
   homedir: Accessor<string>
+  projectsWidth?: Accessor<number>
+  maxProjectsWidth?: Accessor<number>
+  onResizeProjects?: (width: number) => void
+  onResetProjectsWidth?: () => void
   serverHealth: (server: ServerConnection.Any) => ServerHealth | undefined
   projectsForServer: (server: ServerConnection.Any) => LocalProject[]
   collapsed: (server: ServerConnection.Any) => boolean
@@ -69,7 +81,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
   return (
     <aside
       class={`
-        mt-6 flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden
+        relative mt-6 flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden lg:overflow-visible
         lg:sticky lg:top-14 lg:mt-14 lg:h-[calc(100cqh-56px)] lg:self-start lg:pt-[52px]
       `}
       aria-label={props.language.t("home.projects")}
@@ -78,7 +90,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
         props.onWheel(event)
       }}
     >
-      <div class="flex h-7 min-w-0 shrink-0 items-center justify-between pl-1.5 pr-3">
+      <div class="flex h-7 min-w-0 shrink-0 items-center justify-between ps-1.5 pe-3">
         <div class="text-v2-text-text-muted [font-weight:530]">{props.language.t("home.projects")}</div>
         <Show
           when={props.servers().length === 1 && !(props.projects().length === 0 && props.recentlyClosed().length > 0)}
@@ -101,7 +113,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
         <Show
           when={props.servers().length > 1}
           fallback={
-            <div class="pr-3">
+            <div class="pe-3">
               <Show
                 when={props.projects().length > 0}
                 fallback={<HomeProjectEmpty {...props} server={props.servers()[0]} items={props.recentlyClosed()} />}
@@ -116,7 +128,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
             </div>
           }
         >
-          <div class="flex min-w-0 flex-col gap-4 pr-3">
+          <div class="flex min-w-0 flex-col gap-4 pe-3">
             <For each={props.servers()}>
               {(item) => {
                 const projects = () => props.projectsForServer(item)
@@ -150,6 +162,22 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
         onOpenHelp={props.onOpenHelp}
         language={props.language}
       />
+      <Show when={props.onResizeProjects}>
+        <div
+          data-slot="home-projects-resize"
+          class="hidden lg:block absolute inset-y-0 end-0 z-20 w-0 overflow-visible"
+        >
+          <div data-slot="home-projects-resize-line" />
+          <ResizeHandle
+            direction="horizontal"
+            size={props.projectsWidth?.() ?? DEFAULT_HOME_PROJECTS_WIDTH}
+            min={MIN_HOME_PROJECTS_WIDTH}
+            max={props.maxProjectsWidth?.() ?? MAX_HOME_PROJECTS_WIDTH}
+            onResize={props.onResizeProjects!}
+            onDblClick={props.onResetProjectsWidth}
+          />
+        </div>
+      </Show>
     </aside>
   )
 }
@@ -161,7 +189,7 @@ export function HomeUtilityNav(props: {
   language: ReturnType<typeof useLanguage>
 }) {
   return (
-    <div class={`${props.class ?? ""} min-w-0 flex-col gap-1 pr-3`}>
+    <div class={`${props.class ?? ""} min-w-0 flex-col gap-1 pe-3`}>
       <HomeProjectNavButton
         type="button"
         class="text-v2-text-text-faint [&>[data-slot=icon-svg]]:text-v2-icon-icon-muted"
@@ -211,7 +239,7 @@ function HomeServerRow(props: {
     <div class="group/server relative flex h-7 min-w-0 items-center rounded-[6px]">
       <HomeProjectNavButton
         type="button"
-        class="pr-16 disabled:opacity-60"
+        class="pe-16 disabled:opacity-60"
         data-selected={props.selected ? "" : undefined}
         disabled={!healthy()}
         onClick={() => props.onFocusServer(props.server)}
@@ -246,7 +274,7 @@ function HomeServerRow(props: {
             style={{ transform: `rotate(${props.collapsed ? -90 : 0}deg)` }}
           />
         </span>
-        <div class="flex size-4 shrink-0 items-center justify-center -mr-0.5">
+        <div class="flex size-4 shrink-0 items-center justify-center -me-0.5">
           <ServerHealthIndicator health={props.health} />
         </div>
         <span class="flex min-w-0 items-center gap-1">
@@ -267,7 +295,7 @@ function HomeServerRow(props: {
       </HomeProjectNavButton>
       <div
         class={`
-          hover-reveal absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1
+          hover-reveal absolute end-1 top-1/2 flex -translate-y-1/2 items-center gap-1
           group-hover/server:opacity-100 focus-within:opacity-100 data-[menu=true]:opacity-100
         `}
         data-menu={props.contextMenuOpen(contextMenuID())}
@@ -403,7 +431,7 @@ function HomeProjectEmpty(
         <span class={HOME_PROJECT_NAV_LABEL}>{props.language.t("home.project.add")}</span>
       </HomeProjectNavButton>
       <Show when={props.items.length > 0}>
-        <div class="mt-3 flex h-7 min-w-0 shrink-0 items-center pl-1.5 pr-3">
+        <div class="mt-3 flex h-7 min-w-0 shrink-0 items-center ps-1.5 pe-3">
           <div class="text-v2-text-text-faint [font-weight:530]">{props.language.t("home.recentlyClosed")}</div>
         </div>
         <For each={props.items}>
@@ -483,7 +511,7 @@ function HomeProjectRow(
       <HomeProjectNavButton
         type="button"
         data-component="home-project-row"
-        class="pr-16 disabled:opacity-60"
+        class="pe-16 disabled:opacity-60"
         classList={{
           "bg-v2-background-bg-layer-01 text-v2-text-text-base": sortable.isDragSource(),
         }}
@@ -519,11 +547,13 @@ function HomeProjectRow(
         }}
       >
         <HomeProjectAvatar project={props.project} />
-        <span class={HOME_PROJECT_NAV_LABEL}>{displayName(props.project)}</span>
+        <span class={HOME_PROJECT_NAV_LABEL} title={displayName(props.project)}>
+          {displayName(props.project)}
+        </span>
       </HomeProjectNavButton>
       <div
         class={`
-          hover-reveal absolute right-1 top-1/2 flex -translate-y-1/2 items-center gap-1
+          hover-reveal absolute end-1 top-1/2 flex -translate-y-1/2 items-center gap-1
           group-hover/project:opacity-100 focus-within:opacity-100 data-[menu=true]:opacity-100
         `}
         data-menu={props.contextMenuOpen(contextMenuID())}
