@@ -1,5 +1,7 @@
+import path from "path"
 import { LayerNode } from "@opencode-ai/core/effect/layer-node"
-import { and, eq, sql } from "drizzle-orm"
+import { and, eq, ne, sql } from "drizzle-orm"
+import { Global } from "@opencode-ai/core/global"
 import { Database } from "@opencode-ai/core/database/database"
 import { ProjectDirectoryTable, ProjectTable } from "@opencode-ai/core/project/sql"
 import { ProjectDirectories } from "@opencode-ai/core/project/directories"
@@ -146,6 +148,7 @@ const layer = Layer.effect(
     const migrateProjectId = Effect.fn("Project.migrateProjectId")(function* (
       oldID: ProjectV2.ID | undefined,
       newID: ProjectV2.ID,
+      worktree?: string,
     ) {
       if (!oldID) return
       if (oldID === ProjectV2.ID.global) return
@@ -163,6 +166,7 @@ const layer = Layer.effect(
                   .values({
                     ...oldProject,
                     id: newID,
+                    ...(worktree ? { worktree: AbsolutePath.make(worktree), sandboxes: [] } : {}),
                     time_updated: Date.now(),
                   })
                   .run()
@@ -190,6 +194,14 @@ const layer = Layer.effect(
           { behavior: "immediate" },
         )
         .pipe(Effect.orDie)
+
+      if (/^[0-9a-f-]+$/i.test(oldID)) {
+        for (const store of ["snapshot", "worktree"]) {
+          yield* fs
+            .rename(path.join(Global.Path.data, store, oldID), path.join(Global.Path.data, store, newID))
+            .pipe(Effect.ignore)
+        }
+      }
     })
 
     const saveProjectDirectory = Effect.fn("Project.saveProjectDirectory")(function* (input: {
@@ -214,11 +226,26 @@ const layer = Layer.effect(
       yield* Effect.logInfo("fromDirectory", { directory })
 
       const data = yield* projectV2.resolve(AbsolutePath.make(directory))
-      const worktree = data.id === ProjectV2.ID.make("global") && !data.vcs ? "/" : data.directory
+      const mainRoot =
+        data.vcs?.type === "git" && path.basename(data.vcs.store) === ".git"
+          ? path.dirname(data.vcs.store)
+          : data.directory
+      const worktree = data.id === ProjectV2.ID.make("global") && !data.vcs ? "/" : mainRoot
 
       // Phase 2: upsert
-      const projectID = ProjectV2.ID.make(data.id)
-      yield* migrateProjectId(data.previous ? ProjectV2.ID.make(data.previous) : undefined, projectID)
+      const resolvedID = ProjectV2.ID.make(data.id)
+      let projectID = resolvedID
+      if (data.vcs?.type === "git" && resolvedID !== ProjectV2.ID.global && !ProjectV2.isStableID(resolvedID)) {
+        const minted = ProjectV2.ID.make(crypto.randomUUID())
+        yield* projectV2.commit({ store: data.vcs.store, id: minted })
+        projectID = minted
+        yield* migrateProjectId(resolvedID, projectID, mainRoot)
+      }
+      if (projectID === resolvedID) {
+        yield* migrateProjectId(data.previous ? ProjectV2.ID.make(data.previous) : undefined, projectID, data.directory)
+      } else if (data.previous && data.previous !== resolvedID) {
+        yield* migrateProjectId(ProjectV2.ID.make(data.previous), projectID, mainRoot)
+      }
       const row = yield* db.select().from(ProjectTable).where(eq(ProjectTable.id, projectID)).get().pipe(Effect.orDie)
       const existing = row
         ? fromRow(row)
@@ -237,6 +264,13 @@ const layer = Layer.effect(
         worktree: projectID === ProjectV2.ID.global ? worktree : existing.worktree,
         vcs: data.vcs?.type ?? fakeVcs,
         time: { ...existing.time, updated: Date.now() },
+      }
+      if (projectID !== ProjectV2.ID.global && result.worktree !== data.directory) {
+        const worktreeExists = yield* fs.exists(result.worktree).pipe(Effect.orDie)
+        if (!worktreeExists) {
+          result.worktree = data.directory
+          result.sandboxes = result.sandboxes.filter((sandbox) => sandbox !== result.worktree)
+        }
       }
       if (
         projectID !== ProjectV2.ID.global &&
@@ -292,7 +326,13 @@ const layer = Layer.effect(
         yield* db
           .update(SessionTable)
           .set({ project_id: projectID })
-          .where(and(eq(SessionTable.project_id, ProjectV2.ID.global), eq(SessionTable.directory, data.directory)))
+          .where(and(ne(SessionTable.project_id, projectID), eq(SessionTable.directory, data.directory)))
+          .run()
+          .pipe(Effect.orDie)
+        yield* db
+          .update(WorkspaceTable)
+          .set({ project_id: projectID })
+          .where(and(ne(WorkspaceTable.project_id, projectID), eq(WorkspaceTable.directory, data.directory)))
           .run()
           .pipe(Effect.orDie)
       }
@@ -303,9 +343,6 @@ const layer = Layer.effect(
       })
 
       yield* emitUpdated(result)
-      if (projectID !== ProjectV2.ID.global && data.vcs?.type === "git") {
-        yield* projectV2.commit({ store: data.vcs.store, id: data.id })
-      }
       return { project: result, sandbox: data.vcs ? data.directory : worktree }
     })
 
