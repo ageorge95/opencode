@@ -17,6 +17,12 @@ export type ID = ProjectSchema.ID
 export const Vcs = ProjectSchema.Vcs
 export type Vcs = ProjectSchema.Vcs
 
+const STABLE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function isStableID(id: string) {
+  return STABLE_ID_PATTERN.test(id)
+}
+
 export class Info extends Schema.Class<Info>("Project.Info")({
   id: ID,
 }) {}
@@ -62,12 +68,26 @@ const layer = Layer.effect(
       return yield* projectDirectories.list(input.projectID)
     })
 
+    const parse = (content: string): { repoID?: ID; legacy?: ID } => {
+      try {
+        const parsed: unknown = JSON.parse(content)
+        if (parsed && typeof parsed === "object" && "repoID" in parsed) {
+          const repoID = parsed.repoID
+          if (typeof repoID === "string" && isStableID(repoID)) return { repoID: ID.make(repoID) }
+          return {}
+        }
+      } catch {}
+      if (isStableID(content)) return { repoID: ID.make(content) }
+      return { legacy: ID.make(content) }
+    }
+
     const cached = Effect.fnUntraced(function* (dir: string) {
-      return yield* fs.readFileString(path.join(dir, "opencode")).pipe(
+      const content = yield* fs.readFileString(path.join(dir, "opencode")).pipe(
         Effect.map((value) => value.trim()),
-        Effect.map((value) => (value ? ID.make(value) : undefined)),
         Effect.catch(() => Effect.succeed(undefined)),
       )
+      if (!content) return { repoID: undefined, legacy: undefined }
+      return parse(content)
     })
 
     const remote = Effect.fnUntraced(function* (repo: Git.Repository) {
@@ -111,18 +131,33 @@ const layer = Layer.effect(
       const repo = yield* git.repo.discover(input)
       if (!repo) return { id: ID.global, directory: AbsolutePath.make(path.parse(input).root), vcs: undefined }
 
-      const previous = yield* cached(repo.commonDirectory)
+      const vcs = { type: "git" as const, store: repo.commonDirectory }
+      const stored = yield* cached(repo.commonDirectory)
+      if (stored.repoID) {
+        return {
+          id: stored.repoID,
+          directory: repo.worktree,
+          vcs,
+        }
+      }
+
+      const previous = stored.legacy
       const id = (yield* remote(repo)) ?? previous ?? (yield* root(repo))
       return {
         previous,
         id: id ?? ID.global,
         directory: repo.worktree,
-        vcs: { type: "git" as const, store: repo.commonDirectory },
+        vcs,
       }
     })
 
     const commit = Effect.fn("Project.commit")(function* (input: { store: AbsolutePath; id: ID }) {
-      yield* fs.writeFileString(path.join(input.store, "opencode"), input.id).pipe(Effect.ignore)
+      yield* fs
+        .writeFileString(
+          path.join(input.store, "opencode"),
+          JSON.stringify({ version: 1, repoID: input.id }) + "\n",
+        )
+        .pipe(Effect.ignore)
     })
 
     return Service.of({ directories, resolve, commit })
