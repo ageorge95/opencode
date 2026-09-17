@@ -41,6 +41,9 @@ export function createHomeProjectsController(home: HomeController) {
   }
 
   return {
+    width: home.projectsWidth,
+    resize: home.resizeProjects,
+    resetWidth: home.resetProjectsWidth,
     copy: {
       language,
     },

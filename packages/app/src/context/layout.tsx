@@ -32,6 +32,9 @@ const DEFAULT_FILE_TREE_WIDTH = 200
 const DEFAULT_SESSION_WIDTH = 600
 const DEFAULT_TERMINAL_HEIGHT = 280
 const DEFAULT_REVIEW_PANEL_OPENED = false
+export const DEFAULT_HOME_PROJECTS_WIDTH = 320
+export const MIN_HOME_PROJECTS_WIDTH = 220
+export const MAX_HOME_PROJECTS_WIDTH = 600
 export type AvatarColorKey = (typeof AVATAR_COLOR_KEYS)[number]
 
 export function getAvatarColors(key?: string) {
@@ -247,12 +250,22 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         return next
       })()
 
+      const migratedHome = (() => {
+        if (!isRecord(value.home)) return value.home
+        if (typeof value.home.projectsWidth === "number") return value.home
+        return {
+          ...value.home,
+          projectsWidth: DEFAULT_HOME_PROJECTS_WIDTH,
+        }
+      })()
+
       if (
         migratedSidebar === sidebar &&
         migratedReview === review &&
         migratedFileTree === fileTree &&
         migratedSessionTabs === value.sessionTabs &&
-        sessionView === value.sessionView
+        sessionView === value.sessionView &&
+        migratedHome === value.home
       ) {
         return value
       }
@@ -264,6 +277,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         fileTree: migratedFileTree,
         sessionTabs: migratedSessionTabs,
         sessionView,
+        home: migratedHome,
       }
     }
 
@@ -303,6 +317,7 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         home: {
           selection: { server: server.key } as HomeProjectSelection,
+          projectsWidth: DEFAULT_HOME_PROJECTS_WIDTH,
         },
       }),
     )
@@ -618,6 +633,13 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         selection: createMemo(() => store.home.selection),
         setSelection(selection: HomeProjectSelection) {
           setStore("home", "selection", reconcile(selection))
+        },
+        projectsWidth: createMemo(() => store.home?.projectsWidth ?? DEFAULT_HOME_PROJECTS_WIDTH),
+        resizeProjects(width: number) {
+          setStore("home", "projectsWidth", width)
+        },
+        resetProjectsWidth() {
+          setStore("home", "projectsWidth", DEFAULT_HOME_PROJECTS_WIDTH)
         },
       },
       handoff: {

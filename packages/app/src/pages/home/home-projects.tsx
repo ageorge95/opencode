@@ -1,11 +1,20 @@
+import type { Accessor } from "solid-js"
 import type { HomeProjectsController } from "./home-projects-controller"
 import { HomeProjectsView } from "./home-projects-view"
 import type { HomeScrollController } from "./home-scroll-controller"
 
-export function HomeProjects(props: { projects: HomeProjectsController; scroll: HomeScrollController }) {
+export function HomeProjects(props: {
+  projects: HomeProjectsController
+  scroll: HomeScrollController
+  maxProjectsWidth?: Accessor<number>
+}) {
   return (
     <HomeProjectsView
       language={props.projects.copy.language}
+      projectsWidth={props.projects.width}
+      maxProjectsWidth={props.maxProjectsWidth}
+      onResizeProjects={props.projects.resize}
+      onResetProjectsWidth={props.projects.resetWidth}
       servers={props.projects.server.list}
       projects={props.projects.project.list}
       recentlyClosed={props.projects.project.recentlyClosed}
