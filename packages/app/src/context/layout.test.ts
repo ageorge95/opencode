@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { createRoot, createSignal } from "solid-js"
 import { createSessionKeyReader, ensureSessionKey, pruneSessionKeys } from "./layout-helpers"
+import { DEFAULT_HOME_PROJECTS_WIDTH, MAX_HOME_PROJECTS_WIDTH, MIN_HOME_PROJECTS_WIDTH } from "./layout"
 
 describe("layout session-key helpers", () => {
   test("couples touch and scroll seed in order", () => {
@@ -65,5 +66,15 @@ describe("pruneSessionKeys", () => {
     })
 
     expect(drop).toEqual([])
+  })
+})
+
+describe("home projects width configuration", () => {
+  test("has expected default, min, and max width bounds", () => {
+    expect(DEFAULT_HOME_PROJECTS_WIDTH).toBe(320)
+    expect(MIN_HOME_PROJECTS_WIDTH).toBe(220)
+    expect(MAX_HOME_PROJECTS_WIDTH).toBe(600)
+    expect(DEFAULT_HOME_PROJECTS_WIDTH).toBeGreaterThan(MIN_HOME_PROJECTS_WIDTH)
+    expect(DEFAULT_HOME_PROJECTS_WIDTH).toBeLessThan(MAX_HOME_PROJECTS_WIDTH)
   })
 })

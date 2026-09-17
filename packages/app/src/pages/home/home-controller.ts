@@ -54,6 +54,9 @@ export function createHomeController() {
   }
 
   return {
+    projectsWidth: layout.home.projectsWidth,
+    resizeProjects: layout.home.resizeProjects,
+    resetProjectsWidth: layout.home.resetProjectsWidth,
     selection: {
       value: selection,
       set: setSelection,
