@@ -348,6 +348,20 @@ export const SettingsGeneral: Component = () => {
         </SettingsRow>
 
         <SettingsRow
+          title={language.t("settings.general.row.blockNetwork.title")}
+          description={language.t("settings.general.row.blockNetwork.description")}
+        >
+          <div data-action="settings-block-opencode-claude-network">
+            <Switch
+              checked={serverSync().data.config.block_opencode_claude_network ?? false}
+              onChange={(checked) => {
+                serverSync().updateConfig({ block_opencode_claude_network: checked })
+              }}
+            />
+          </div>
+        </SettingsRow>
+
+        <SettingsRow
           title={language.t("settings.general.row.reasoningSummaries.title")}
           description={language.t("settings.general.row.reasoningSummaries.description")}
         >
