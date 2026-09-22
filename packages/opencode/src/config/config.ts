@@ -36,6 +36,7 @@ import { ConfigVariable } from "./variable"
 import { ConfigV2Compat } from "./v2-compat"
 import { Npm } from "@opencode-ai/core/npm"
 import { withTransientReadRetry } from "@/util/effect-http-client"
+import { NetworkBlocker } from "@opencode-ai/core/network-blocker"
 
 // Custom merge function that concatenates array fields instead of replacing them
 // Keep remeda's deep conditional merge type out of hot config-loading paths; TS profiling showed it dominates here.
@@ -287,6 +288,10 @@ const layer = Layer.effect(
             })
             .catch(() => {}),
         )
+      }
+
+      if (result.block_opencode_claude_network !== undefined) {
+        NetworkBlocker.setNetworkBlockerEnabled(result.block_opencode_claude_network)
       }
 
       return result
@@ -597,6 +602,10 @@ const layer = Layer.effect(
           result.compaction = { ...result.compaction, prune: false }
         }
 
+        if (result.block_opencode_claude_network !== undefined) {
+          NetworkBlocker.setNetworkBlockerEnabled(result.block_opencode_claude_network)
+        }
+
         return {
           config: result,
           directories,
@@ -676,6 +685,9 @@ const layer = Layer.effect(
       }
 
       if (changed) yield* invalidate()
+      if (next.block_opencode_claude_network !== undefined) {
+        NetworkBlocker.setNetworkBlockerEnabled(next.block_opencode_claude_network)
+      }
       return { info: next, changed }
     })
 

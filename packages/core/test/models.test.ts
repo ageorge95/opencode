@@ -7,6 +7,7 @@ import { LayerNode } from "@opencode-ai/core/effect/layer-node"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { Global } from "@opencode-ai/core/global"
 import { ModelsDev } from "@opencode-ai/core/models-dev"
+import { NetworkBlocker } from "@opencode-ai/core/network-blocker"
 import { it } from "./lib/effect"
 import { readFile, rm, writeFile, utimes, mkdir } from "fs/promises"
 import path from "path"
@@ -18,13 +19,17 @@ import path from "path"
 // bun process.
 const ORIGINAL_MODELS_PATH = Flag.OPENCODE_MODELS_PATH
 const ORIGINAL_DISABLE_FETCH = Flag.OPENCODE_DISABLE_MODELS_FETCH
+const ORIGINAL_CLIENT = process.env.OPENCODE_CLIENT
 beforeAll(() => {
   Flag.OPENCODE_MODELS_PATH = undefined
   Flag.OPENCODE_DISABLE_MODELS_FETCH = true
+  process.env.OPENCODE_CLIENT = "cli"
 })
 afterAll(() => {
   Flag.OPENCODE_MODELS_PATH = ORIGINAL_MODELS_PATH
   Flag.OPENCODE_DISABLE_MODELS_FETCH = ORIGINAL_DISABLE_FETCH
+  if (ORIGINAL_CLIENT === undefined) delete process.env.OPENCODE_CLIENT
+  else process.env.OPENCODE_CLIENT = ORIGINAL_CLIENT
 })
 
 const cacheFile = path.join(Global.Path.cache, "models.json")
@@ -287,4 +292,27 @@ describe("ModelsDev Service", () => {
       expect(final.calls.length).toBeGreaterThanOrEqual(1)
     }),
   )
+
+  it.live("skips fetch when network blocker is enabled", () =>
+    Effect.gen(function* () {
+      NetworkBlocker.setNetworkBlockerEnabled(true)
+      try {
+        const state = yield* Ref.make({ ...initialState, body: JSON.stringify(fixture) })
+        const result = yield* provided(
+          state,
+          Effect.gen(function* () {
+            const svc = yield* ModelsDev.Service
+            yield* svc.refresh(true)
+            return yield* svc.get()
+          }),
+        )
+        const final = yield* Ref.get(state)
+        expect(final.calls).toEqual([])
+        expect(result).toEqual({})
+      } finally {
+        NetworkBlocker.setNetworkBlockerEnabled(false)
+      }
+    }),
+  )
 })
+

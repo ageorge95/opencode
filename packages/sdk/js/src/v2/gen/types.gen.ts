@@ -1889,6 +1889,7 @@ export type AttachmentConfig = {
 export type Config = {
   $schema?: string
   shell?: string
+  block_opencode_claude_network?: boolean
   logLevel?: LogLevel
   server?: ServerConfig
   command?: {
