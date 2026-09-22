@@ -7,6 +7,7 @@ import { TextInputV2 } from "@opencode-ai/ui/v2/text-input-v2"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
+import { useServerSync } from "@/context/server-sync"
 import { useUpdaterAction } from "../updater-action"
 import { useSettings } from "@/context/settings"
 import { ExternalLink } from "../external-link"
@@ -278,6 +279,7 @@ export const SettingsGeneralV2: Component<{
   const platform = usePlatform()
   const dialog = useDialog()
   const settings = useSettings()
+  const serverSync = useServerSync()
   const mobile = createMediaQuery("(max-width: 767px)")
   const updater = useUpdaterAction()
   const permissionScope = createPermissionScopeController(() => props.sessionID)
@@ -332,6 +334,20 @@ export const SettingsGeneralV2: Component<{
         <PermissionScopeSetting controller={permissionScope} />
 
         <ShellSetting controller={shell} />
+
+        <SettingsRowV2
+          title={language.t("settings.general.row.blockNetwork.title")}
+          description={language.t("settings.general.row.blockNetwork.description")}
+        >
+          <div data-action="settings-block-opencode-claude-network">
+            <Switch
+              checked={serverSync().data.config.block_opencode_claude_network ?? false}
+              onChange={(checked) => {
+                serverSync().updateConfig({ block_opencode_claude_network: checked })
+              }}
+            />
+          </div>
+        </SettingsRowV2>
 
         <SettingsRowV2
           title={language.t("settings.general.row.reasoningSummaries.title")}

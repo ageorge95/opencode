@@ -11,6 +11,7 @@ import { InstallationChannel, InstallationVersion } from "./installation/version
 import { EventV2 } from "./event"
 import { makeGlobalNode } from "./effect/app-node"
 import { httpClient } from "./effect/app-node-platform"
+import { NetworkBlocker } from "./network-blocker"
 
 export const CatalogModelStatus = Schema.Literals(["alpha", "beta", "deprecated"])
 export type CatalogModelStatus = typeof CatalogModelStatus.Type
@@ -20,7 +21,7 @@ const InterleavedField = Schema.Union([
   Schema.String,
 ])
 
-const USER_AGENT = `opencode/${InstallationChannel}/${InstallationVersion}/${Flag.OPENCODE_CLIENT}`
+const userAgent = () => `opencode/${InstallationChannel}/${InstallationVersion}/${Flag.OPENCODE_CLIENT}`
 
 const CostTier = Schema.Struct({
   input: Schema.Finite,
@@ -174,7 +175,7 @@ const layer = Layer.effect(
 
     const fetchApi = Effect.fn("ModelsDev.fetchApi")(function* () {
       return yield* HttpClientRequest.get(`${source}/api.json`).pipe(
-        HttpClientRequest.setHeader("User-Agent", USER_AGENT),
+        HttpClientRequest.setHeader("User-Agent", userAgent()),
         http.execute,
         Effect.flatMap((res) => res.text),
         Effect.timeout("10 seconds"),
@@ -220,6 +221,7 @@ const layer = Layer.effect(
       const snapshot = yield* loadSnapshot
       if (snapshot) return snapshot
       if (Flag.OPENCODE_DISABLE_MODELS_FETCH) return {}
+      if (NetworkBlocker.isNetworkBlockerEnabled() && NetworkBlocker.isBlockedUrl(source)) return {}
       // Flock is cross-process: concurrent opencode CLIs can race on this cache file.
       const text = yield* Effect.scoped(
         Effect.gen(function* () {
@@ -235,6 +237,7 @@ const layer = Layer.effect(
     const get = (): Effect.Effect<Record<string, Provider>> => cachedGet
 
     const refresh = Effect.fn("ModelsDev.refresh")(function* (force = false) {
+      if (NetworkBlocker.isNetworkBlockerEnabled() && NetworkBlocker.isBlockedUrl(source)) return
       if (!force && (yield* fresh())) return
       yield* Effect.scoped(
         Effect.gen(function* () {

@@ -4,6 +4,9 @@ import { FileSystem, Path } from "effect"
 import { FetchHttpClient } from "effect/unstable/http"
 import { HttpClient } from "effect/unstable/http"
 import { makeGlobalNode } from "./app-node"
+import { NetworkBlocker } from "../network-blocker"
+
+NetworkBlocker.installGlobalFetchBlocker()
 
 export const filesystem = makeGlobalNode({ service: FileSystem.FileSystem, layer: NodeFileSystem.layer, deps: [] })
 export const path = makeGlobalNode({ service: Path.Path, layer: NodePath.layer, deps: [] })

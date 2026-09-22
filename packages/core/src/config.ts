@@ -25,6 +25,7 @@ import { ConfigToolOutput } from "./config/tool-output"
 import { ConfigWatcher } from "./config/watcher"
 import { ConfigV1 } from "./v1/config/config"
 import { ConfigMigrateV1 } from "./v1/config/migrate"
+import { NetworkBlocker } from "./network-blocker"
 
 export class Info extends Schema.Class<Info>("Config.Info")({
   $schema: Schema.optional(Schema.String).annotate({
@@ -32,6 +33,9 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   }),
   shell: Schema.String.pipe(Schema.optional).annotate({
     description: "Default shell to use for terminal and shell tool execution",
+  }),
+  block_opencode_claude_network: Schema.Boolean.pipe(Schema.optional).annotate({
+    description: "Prevent any network requests to opencode.ai or claude.ai domains",
   }),
   model: Schema.String.pipe(Schema.optional).annotate({
     description: "Default model to use when no session or agent model is selected",
@@ -209,6 +213,11 @@ const layer = Layer.effect(
         .toReversed()
         .flatMap((config) => config.info.experimental?.policies ?? []),
     )
+
+    const blockNetwork = latest(configs, "block_opencode_claude_network")
+    if (blockNetwork !== undefined) {
+      NetworkBlocker.setNetworkBlockerEnabled(blockNetwork)
+    }
 
     return Service.of({
       entries: Effect.fn("Config.entries")(function* () {

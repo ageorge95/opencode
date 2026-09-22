@@ -16,6 +16,7 @@ import { nativeT } from "./native-translations"
 import { createWindowRegistry } from "./window-registry"
 import { safeWindowURL } from "./window-state"
 import { resolveExternalURL, resolveLocalFilePath } from "./external-url"
+import { shouldBlockNetworkRequest } from "./network-blocking"
 
 const root = dirname(fileURLToPath(import.meta.url))
 const rendererRoot = join(root, "../renderer")
@@ -207,6 +208,24 @@ export function createMainWindow(id: string = randomUUID()) {
   allowRendererPermissions(win)
   wireWindowRecovery(win, id)
   wireNavigationPolicy(win)
+
+  win.webContents.session.webRequest.onBeforeRequest(
+    {
+      urls: [
+        "*://*.opencode.ai/*",
+        "*://opencode.ai/*",
+        "*://*.claude.ai/*",
+        "*://claude.ai/*",
+      ],
+    },
+    (details, callback) => {
+      if (shouldBlockNetworkRequest()) {
+        callback({ cancel: true })
+        return
+      }
+      callback({ cancel: false })
+    },
+  )
 
   win.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
     const { requestHeaders } = details
