@@ -11,6 +11,7 @@ import { ConfigParse } from "../../src/config/parse"
 import { ConfigV2Compat } from "../../src/config/v2-compat"
 import { snapshot } from "./snapshot"
 import { Npm } from "@opencode-ai/core/npm"
+import { NetworkBlocker } from "@opencode-ai/core/network-blocker"
 
 import { InstanceRef } from "../../src/effect/instance-ref"
 import type { InstanceContext } from "../../src/project/instance-context"
@@ -2232,3 +2233,26 @@ test("parseManagedPlist handles empty config", async () => {
   )
   expect(config.$schema).toBe("https://opencode.ai/config.json")
 })
+
+test("loads and syncs block_opencode_claude_network setting", async () => {
+  try {
+    await provideTmpdirInstance(
+      () =>
+        Config.Service.use((svc) =>
+          Effect.gen(function* () {
+            const info = yield* svc.get()
+            expect(info.block_opencode_claude_network).toBe(true)
+            expect(NetworkBlocker.isNetworkBlockerEnabled()).toBe(true)
+          }),
+        ),
+      { config: { block_opencode_claude_network: true } },
+    ).pipe(
+      Effect.scoped,
+      Effect.provide(configLayer()),
+      Effect.runPromise,
+    )
+  } finally {
+    NetworkBlocker.setNetworkBlockerEnabled(false)
+  }
+})
+
