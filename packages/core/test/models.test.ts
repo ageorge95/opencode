@@ -9,6 +9,7 @@ import { Bus } from "@opencode/core/bus"
 import { KV } from "@opencode/core/kv"
 import { Model } from "@opencode/core/model"
 import { bodyDigest, ModelsDev } from "@opencode/core/models-dev"
+import { NetworkBlocker } from "@opencode/core/network-blocker"
 import { Provider } from "@opencode/core/provider"
 import { it } from "./lib/effect"
 
@@ -569,6 +570,29 @@ describe("ModelsDev Service", () => {
       // retryTransient retries 5xx, so calls may be > 1.
       const final = yield* Ref.get(state)
       expect(final.calls.length).toBeGreaterThanOrEqual(1)
+    }),
+  )
+
+  it.live("skips the network while the blocker covers the source", () =>
+    Effect.gen(function* () {
+      NetworkBlocker.setNetworkBlockerEnabled(true)
+      try {
+        const cache = makeCache()
+        const state = yield* Ref.make(initialState)
+        const result = yield* ModelsDev.Service.use((svc) =>
+          Effect.gen(function* () {
+            const catalog = yield* svc.get()
+            yield* svc.refresh(true)
+            return catalog
+          }),
+        ).pipe(Effect.provide(buildLayer(state, cache, { fetch: true, snapshot: false })))
+        expect(result).toEqual([])
+        const final = yield* Ref.get(state)
+        expect(final.calls).toEqual([])
+        expect(cache.values.has(cacheKey)).toBe(false)
+      } finally {
+        NetworkBlocker.setNetworkBlockerEnabled(false)
+      }
     }),
   )
 })

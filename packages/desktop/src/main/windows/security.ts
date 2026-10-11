@@ -1,4 +1,5 @@
 import type { BrowserWindow } from "electron"
+import { shouldBlockNetworkRequest } from "../network-blocking"
 import { SidecarCredentials } from "../service/sidecar-credentials"
 import { addRendererHeaders, hasHeader, upsertHeader } from "./headers"
 import { isRendererUrl } from "./scheme"
@@ -32,6 +33,17 @@ export function wireNavigationPolicy(win: BrowserWindow, openExternalURL: (url: 
     event.preventDefault()
     openExternalURL(url)
   })
+}
+
+export function wireNetworkBlocking(win: BrowserWindow) {
+  win.webContents.session.webRequest.onBeforeRequest(
+    {
+      urls: ["*://opencode.ai/*", "*://*.opencode.ai/*", "*://claude.ai/*", "*://*.claude.ai/*"],
+    },
+    (_details, callback) => {
+      callback({ cancel: shouldBlockNetworkRequest() })
+    },
+  )
 }
 
 export function wireRendererHeaders(win: BrowserWindow) {

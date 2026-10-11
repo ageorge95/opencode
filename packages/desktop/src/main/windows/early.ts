@@ -9,7 +9,7 @@ import { getStore } from "../storage/store"
 import { storedBackgroundColor, titlebarOverlay } from "./defaults"
 import { registerRendererProtocol } from "./protocol"
 import { loadWindow } from "./scheme"
-import { allowRendererPermissions, wireNavigationPolicy, wireRendererHeaders } from "./security"
+import { allowRendererPermissions, wireNavigationPolicy, wireNetworkBlocking, wireRendererHeaders } from "./security"
 import { manageWindowState, readWindowState, resolveWindowState, windowStateFile, type WindowState } from "./window-state"
 
 export type EarlyWindow = {
@@ -89,6 +89,7 @@ export function createEarlyWindow() {
   allowRendererPermissions(win)
   wireNavigationPolicy(win, (url) => record.openExternal(url))
   wireRendererHeaders(win)
+  wireNetworkBlocking(win)
   loadWindow(win, "index.html")
 }
 

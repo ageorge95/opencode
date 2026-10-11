@@ -28,7 +28,7 @@ import { createWindowRegistry } from "./registry"
 import { makeWindowRecovery } from "./recovery"
 import { takeEarlyWindow, type EarlyWindow } from "./early"
 import { manageWindowState, readWindowState, resolveWindowState, windowStateFile } from "./window-state"
-import { allowRendererPermissions, wireNavigationPolicy, wireRendererHeaders } from "./security"
+import { allowRendererPermissions, wireNavigationPolicy, wireNetworkBlocking, wireRendererHeaders } from "./security"
 
 const themeReady = new WeakMap<BrowserWindow, () => void>()
 
@@ -164,6 +164,7 @@ export const makeMainWindows = Effect.fn("Window.make")(function* () {
       allowRendererPermissions(win)
       wireNavigationPolicy(win, (url) => runFork(openExternalURL(url)))
       wireRendererHeaders(win)
+      wireNetworkBlocking(win)
       manageWindowState(win, stateFile, state, displays)
     }
 

@@ -13,6 +13,7 @@ import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Credential } from "@opencode/core/credential"
 import { ConfigV1 } from "../fixture/v1-config/config"
 import { ConfigNormalize } from "@opencode/core/config/normalize"
+import { NetworkBlocker } from "@opencode/core/network-blocker"
 import { Watcher } from "@opencode/core/filesystem/watcher"
 import { Bus } from "@opencode/core/bus"
 import { Global } from "@opencode/util/global"
@@ -1741,6 +1742,41 @@ describe("Config", () => {
             ),
           )
         })
+      }),
+    ),
+  )
+
+  it.live("syncs block_opencode_claude_network to the network blocker on load and reload", () =>
+    Effect.acquireDisposable(Effect.promise(() => tmpdir())).pipe(
+      Effect.flatMap((tmp) => {
+        const global = path.join(tmp.path, "global")
+        const file = path.join(global, "opencode.json")
+        return Effect.promise(async () => {
+          await fs.mkdir(global, { recursive: true })
+          await fs.writeFile(file, JSON.stringify({ block_opencode_claude_network: true }))
+        }).pipe(
+          Effect.andThen(
+            Effect.gen(function* () {
+              const config = yield* Config.Service
+              const bus = yield* Bus.Service
+              const watcher = yield* Watcher.Test
+
+              expect(Config.latest(yield* config.entries(), "block_opencode_claude_network")).toBe(true)
+              expect(NetworkBlocker.isNetworkBlockerEnabled()).toBe(true)
+
+              const changed = yield* bus
+                .subscribe(Event.Updated)
+                .pipe(Stream.take(1), Stream.runCollect, Effect.forkScoped)
+              yield* Effect.sleep("10 millis")
+              yield* Effect.promise(() => fs.writeFile(file, JSON.stringify({ block_opencode_claude_network: false })))
+              yield* watcher.emit({ type: "update", path: file })
+
+              expect(yield* Fiber.join(changed)).toHaveLength(1)
+              expect(NetworkBlocker.isNetworkBlockerEnabled()).toBe(false)
+            }).pipe(Effect.provide(testLayer(tmp.path, global))),
+          ),
+          Effect.ensuring(Effect.sync(() => NetworkBlocker.setNetworkBlockerEnabled(false))),
+        )
       }),
     ),
   )

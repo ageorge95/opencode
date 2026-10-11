@@ -10,8 +10,8 @@ import { ServerConnection, serverName } from "@/runtime/server/registry"
 import { useServerCollectionController } from "@/servers/registry/controller"
 import { DialogServer } from "@/servers/connect/dialog"
 import { SettingsList } from "@/settings/list"
-import { ShellSetting } from "@/settings/general/general"
-import { createServerShellController } from "@/settings/general/controllers"
+import { BlockNetworkSetting, ShellSetting } from "@/settings/general/general"
+import { createServerNetworkBlockingController, createServerShellController } from "@/settings/general/controllers"
 import type { SettingsServer } from "./inventory"
 import "@/settings/settings.css"
 
@@ -103,13 +103,15 @@ export const SettingsServerGeneral: Component<{
 
 function ServerShell(props: { server: ServerConnection.Any }) {
   const language = useLanguage()
-  const controller = createServerShellController(() => props.server)
+  const shell = createServerShellController(() => props.server)
+  const networkBlocking = createServerNetworkBlockingController(() => props.server)
 
   return (
     <section class="settings-section">
       <h3 class="settings-section-title">{language.t("settings.tab.preferences")}</h3>
       <SettingsList>
-        <ShellSetting controller={controller} />
+        <ShellSetting controller={shell} />
+        <BlockNetworkSetting controller={networkBlocking} />
       </SettingsList>
     </section>
   )

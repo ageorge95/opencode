@@ -792,6 +792,9 @@ export const dict = {
   "settings.general.row.shell.description": "Shell used by the terminal and agent tools",
   "settings.general.row.shell.autoDefault": "Auto (Default)",
   "settings.general.row.shell.terminalOnly": "terminal only",
+  "settings.general.row.blockNetwork.title": "Block OpenCode & Claude network requests",
+  "settings.general.row.blockNetwork.description":
+    "Prevent any outgoing network requests to opencode.ai and claude.ai domains",
   "settings.general.row.terminalPlacement.title": "Terminal placement",
   "settings.general.row.terminalPlacement.description": "Choose where the terminal opens in sessions",
   "settings.general.row.terminalPlacement.side": "Side",

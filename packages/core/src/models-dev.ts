@@ -13,6 +13,7 @@ import { AISDKNative } from "./aisdk-native.js"
 import { Provider } from "./provider.js"
 import { Variant } from "./variant.js"
 import { KV } from "./kv.js"
+import { NetworkBlocker } from "./network-blocker.js"
 import snapshotText from "./models-dev/snapshot.txt" with { type: "text" }
 
 export const CatalogModelStatus = Schema.Literals(["alpha", "beta", "deprecated"])
@@ -390,6 +391,7 @@ export const layer = (options?: Options) =>
         const bundled = yield* loadSnapshot
         if (bundled) return bundled
         if (!fetch) return []
+        if (NetworkBlocker.isNetworkBlockerEnabled() && NetworkBlocker.isBlockedUrl(source)) return []
         const catalog = yield* lock.withPermit(
           Effect.gen(function* () {
             const stored = options?.file ? undefined : yield* loadFromCache()
@@ -405,6 +407,7 @@ export const layer = (options?: Options) =>
       const get = (): Effect.Effect<readonly Snapshot[]> => cachedGet
 
       const refresh = Effect.fn("ModelsDev.refresh")(function* (force = false) {
+        if (NetworkBlocker.isNetworkBlockerEnabled() && NetworkBlocker.isBlockedUrl(source)) return
         yield* lock
           .withPermit(
             Effect.gen(function* () {

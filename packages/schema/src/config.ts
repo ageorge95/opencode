@@ -29,6 +29,9 @@ export class Info extends Schema.Class<Info>("Config.Info")({
   shell: Schema.String.pipe(optional).annotate({
     description: "Default shell to use for terminal and shell tool execution",
   }),
+  block_opencode_claude_network: Schema.Boolean.pipe(optional).annotate({
+    description: "Prevent any network requests to opencode.ai or claude.ai domains",
+  }),
   model: ConfigModel.Selection.pipe(optional).annotate({
     description: "Default model to use when no session or agent model is selected",
   }),
@@ -110,7 +113,8 @@ export class Info extends Schema.Class<Info>("Config.Info")({
 }) {}
 
 export const Patch = Schema.Struct({
-  shell: Schema.NullOr(Schema.String),
+  shell: optional(Schema.NullOr(Schema.String)),
+  block_opencode_claude_network: optional(Schema.NullOr(Schema.Boolean)),
 }).annotate({ identifier: "Config.Patch" })
 export interface Patch extends Schema.Schema.Type<typeof Patch> {}
 

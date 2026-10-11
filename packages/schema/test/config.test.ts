@@ -104,12 +104,30 @@ describe("Config.Entry", () => {
     expect(Config.Entry.ast.annotations?.identifier).toBe("Config.Entry")
   })
 
+  test("accepts partial config patches", () => {
+    const decode = Schema.decodeUnknownSync(Config.Patch)
+    expect(decode({ block_opencode_claude_network: true })).toEqual({ block_opencode_claude_network: true })
+    expect(decode({ shell: "/bin/zsh" })).toEqual({ shell: "/bin/zsh" })
+    expect(decode({})).toEqual({})
+    expect(decode({ shell: null, block_opencode_claude_network: null })).toEqual({
+      shell: null,
+      block_opencode_claude_network: null,
+    })
+    expect(() => decode({ block_opencode_claude_network: "yes" })).toThrow()
+    // The generated client sends every patch field, so omitted fields must
+    // encode away instead of clearing stored values.
+    expect(
+      Schema.encodeSync(Config.Patch)({ shell: "/bin/zsh", block_opencode_claude_network: undefined }),
+    ).toEqual({ shell: "/bin/zsh" })
+  })
+
   test("omits undefined optional properties while encoding", () => {
     const entry = new Config.Document({
       type: "document",
       path: undefined,
       info: new Config.Info({
         default_agent: undefined,
+        block_opencode_claude_network: undefined,
         agents: { reviewer: new ConfigAgent.Info({ description: undefined }) },
         mcp: new ConfigMCP.Info({
           timeout: undefined,
@@ -130,6 +148,7 @@ describe("Config.Entry", () => {
 
     expect(encoded).not.toHaveProperty("path")
     expect(encoded.info).not.toHaveProperty("default_agent")
+    expect(encoded.info).not.toHaveProperty("block_opencode_claude_network")
     expect(encoded.info.agents?.reviewer).not.toHaveProperty("description")
     expect(encoded.info.mcp).not.toHaveProperty("timeout")
     const docs = encoded.info.mcp?.servers?.docs

@@ -2044,6 +2044,7 @@ export type ConfigEntry =
       info: {
         $schema?: string
         shell?: string
+        block_opencode_claude_network?: boolean
         model?: string | { providerID: string; model: string; variant?: string }
         default_agent?: string
         update?: "disable" | "notify" | "auto"
@@ -6693,6 +6694,12 @@ export type ConfigGetOutput = Array<ConfigEntry>
 
 export type ConfigShellsOutput = Array<ConfigShellOption>
 
-export type ConfigUpdateInput = { readonly shell: { readonly shell: string | null }["shell"] }
+export type ConfigUpdateInput = {
+  readonly shell?: { readonly shell?: string | null; readonly block_opencode_claude_network?: boolean | null }["shell"]
+  readonly block_opencode_claude_network?: {
+    readonly shell?: string | null
+    readonly block_opencode_claude_network?: boolean | null
+  }["block_opencode_claude_network"]
+}
 
 export type ConfigUpdateOutput = void

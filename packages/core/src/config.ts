@@ -18,6 +18,7 @@ import { ConfigNormalize } from "./config/normalize.js"
 import { ConfigDiscovery } from "./config/discovery.js"
 import { ConfigWatch } from "./config/watch.js"
 import { WellKnown } from "./wellknown.js"
+import { NetworkBlocker } from "./network-blocker.js"
 
 export function latest<K extends keyof Info>(entries: readonly Entry[], key: K): Info[K] | undefined {
   return entries.findLast((entry): entry is Document => entry.type === "document" && entry.info[key] !== undefined)
@@ -240,6 +241,11 @@ export const layer = (options?: Options) =>
       const initial = yield* ConfigDiscovery.discover(options)
       let sources = initial
       let configs = yield* load(initial)
+      const syncNetworkBlocker = (entries: readonly Entry[]) => {
+        const enabled = latest(entries, "block_opencode_claude_network")
+        if (enabled !== undefined) NetworkBlocker.setNetworkBlockerEnabled(enabled)
+      }
+      syncNetworkBlocker(configs)
       const updates = yield* PubSub.unbounded<Watcher.Update>()
       const reloads = yield* PubSub.sliding<void>(1)
       // Readiness rescans recover writes made before a watch attached.
@@ -273,6 +279,7 @@ export const layer = (options?: Options) =>
           if (isDeepStrictEqual(configs, next) && !compatibilityChanged) return
           sources = discovered
           configs = next
+          syncNetworkBlocker(next)
           yield* bus.publish(Event.Updated, {})
         },
         (effect) => reloadLock.withPermit(effect),
@@ -333,13 +340,24 @@ export const layer = (options?: Options) =>
           const filepath = (yield* Effect.filter(candidates, fs.isFile)).at(-1) ?? path.join(directory, "opencode.jsonc")
           const text = (yield* fs.readFileStringSafe(filepath)) ?? "{}\n"
           const updated = yield* Effect.try({
-            try: () =>
-              applyEdits(
-                text,
-                modify(text, ["shell"], patch.shell ?? undefined, {
-                  formattingOptions: { tabSize: 2, insertSpaces: true },
-                }),
-              ),
+            try: () => {
+              const formattingOptions = { tabSize: 2, insertSpaces: true }
+              // Apply sequentially: each modify() computes offsets against the
+              // current text, and concatenated edit results can conflict.
+              let next = text
+              if (patch.shell !== undefined) {
+                next = applyEdits(next, modify(next, ["shell"], patch.shell ?? undefined, { formattingOptions }))
+              }
+              if (patch.block_opencode_claude_network !== undefined) {
+                next = applyEdits(
+                  next,
+                  modify(next, ["block_opencode_claude_network"], patch.block_opencode_claude_network ?? undefined, {
+                    formattingOptions,
+                  }),
+                )
+              }
+              return next
+            },
             catch: (cause) => new FSUtil.FileSystemError({ method: "config.update", cause }),
           })
           yield* fs.writeWithDirs(filepath, updated.endsWith("\n") ? updated : `${updated}\n`)

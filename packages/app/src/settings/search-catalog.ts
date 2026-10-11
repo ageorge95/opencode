@@ -176,6 +176,13 @@ export const serverSettings: Entry<SettingsServerTab>[] = [
   },
   {
     tab: "general",
+    label: "settings.general.row.blockNetwork.title",
+    target: "settings-block-opencode-claude-network",
+    description: "settings.general.row.blockNetwork.description",
+    keywords: "network offline privacy block opencode claude",
+  },
+  {
+    tab: "general",
     label: "settings.server.preferences.websearch.title",
     target: "settings-websearch",
     description: "settings.server.preferences.websearch.description",

@@ -15,7 +15,7 @@ import {
 import { formatKeybind } from "@/shell/commands/command"
 import { SettingsList } from "@/settings/list"
 import { SettingsRow } from "@/settings/row"
-import { createShellOptions, type ShellSettingsController } from "./controllers"
+import { createShellOptions, type NetworkBlockingSettingsController, type ShellSettingsController } from "./controllers"
 import "@/settings/settings.css"
 
 const tabLayoutOptions: ("horizontal" | "vertical")[] = ["horizontal", "vertical"]
@@ -99,6 +99,21 @@ export const ShellSetting: Component<{ controller: ShellSettingsController }> = 
         }}
         onSelect={(option) => option && props.controller.select(option.value)}
       />
+    </SettingsRow>
+  )
+}
+
+export const BlockNetworkSetting: Component<{ controller: NetworkBlockingSettingsController }> = (props) => {
+  const language = useLanguage()
+
+  return (
+    <SettingsRow
+      title={language.t("settings.general.row.blockNetwork.title")}
+      description={language.t("settings.general.row.blockNetwork.description")}
+    >
+      <div data-action="settings-block-opencode-claude-network">
+        <Switch checked={props.controller.enabled()} onChange={(checked) => props.controller.select(checked)} />
+      </div>
     </SettingsRow>
   )
 }

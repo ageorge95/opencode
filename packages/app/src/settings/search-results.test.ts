@@ -112,7 +112,8 @@ describe("settings search ranking", () => {
         .filter((item) => item.project)
         .map((item) => item.entity),
     ).toEqual([true])
-    expect(rankSettings("opencode", index(), root).map((item) => item.entity)).toEqual([true, true])
+    // "OpenCode" also appears in a setting title, so filter to the projects.
+    expect(rankSettings("opencode", index(), root).filter((item) => item.entity)).toHaveLength(2)
   })
 
   test("normalizes whitespace, case, and Unicode in qualified names", () => {

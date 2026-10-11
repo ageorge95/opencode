@@ -176,6 +176,57 @@ export function createSoundSettingsController() {
 
 export type ShellSettingsController = ReturnType<typeof createServerShellController>
 
+export function createServerNetworkBlockingController(server: Accessor<ServerConnection.Any>) {
+  const language = useLanguage()
+  const serverCtx = useServerCtx(server)
+  const source = () => ServerConnection.key(server())
+
+  const [state, actions] = createResource(
+    source,
+    async () => {
+      const entries = await serverCtx()
+        .sdk.api.config.get()
+        .catch(() => [])
+
+      const boundary = entries.findIndex((entry) => entry.type === "directory")
+      const global = boundary === -1 ? entries : entries.slice(0, boundary)
+
+      return {
+        enabled:
+          global
+            .flatMap((entry) =>
+              entry.type === "document" && entry.info.block_opencode_claude_network !== undefined
+                ? [entry.info.block_opencode_claude_network]
+                : [],
+            )
+            .at(-1) ?? false,
+      }
+    },
+    { initialValue: { enabled: false } },
+  )
+
+  return {
+    enabled: () => state.latest.enabled,
+    select: (enabled: boolean) => {
+      if (enabled === state.latest.enabled) return
+      const previous = state.latest
+      actions.mutate({ enabled })
+      void serverCtx()
+        .sdk.api.config.update({ block_opencode_claude_network: enabled })
+        .catch((error: unknown) => {
+          actions.mutate(previous)
+          showToast({
+            variant: "error",
+            title: language.t("common.requestFailed"),
+            description: error instanceof Error ? error.message : language.t("common.requestFailed"),
+          })
+        })
+    },
+  }
+}
+
+export type NetworkBlockingSettingsController = ReturnType<typeof createServerNetworkBlockingController>
+
 export type AppearanceSettingsController = ReturnType<typeof createAppearanceSettingsController>
 
 export type SoundSettingsController = ReturnType<typeof createSoundSettingsController>

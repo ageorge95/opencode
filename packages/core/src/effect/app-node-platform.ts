@@ -2,7 +2,10 @@ import { LLMClient, RequestExecutor } from "@opencode/ai/route"
 import { Socket } from "effect/unstable/socket"
 import { makeGlobalNode } from "@opencode/util/effect/app-node"
 import { httpClient } from "@opencode/util/effect/app-node-platform"
+import { NetworkBlocker } from "../network-blocker.js"
 import { WebSocketConstructor } from "./websocket-constructor.js"
+
+NetworkBlocker.installGlobalFetchBlocker()
 
 export const requestExecutor = makeGlobalNode({
   service: RequestExecutor.Service,
