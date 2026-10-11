@@ -133,6 +133,66 @@ test("Home and the directory picker load without newer browser APIs", async ({ p
   await expect(target).toBeVisible()
 })
 
+test("the home projects search filters the project list", async ({ page }) => {
+  const extra = ["Alpha", "Beta"].map((name, index) =>
+    project({ id: `proj_search_${index}`, directory: `/projects/${name}`, name }),
+  )
+
+  await mockStressTimeline(page, { projects: extra })
+  await seed(page, {
+    projects: { local: [fixture.project, ...extra].map((item) => ({ worktree: item.worktree, expanded: true })) },
+    lastProject: { local: fixture.directory },
+  })
+  await page.goto("/")
+
+  const rows = page.locator('[data-component="home-project-row"]')
+  const row = (name: string) => rows.filter({ hasText: name })
+  await expect(rows).toHaveCount(3)
+
+  await page.getByRole("textbox", { name: "Search projects" }).fill("alpha")
+  await expect(row("Alpha")).toBeVisible()
+  await expect(rows).toHaveCount(1)
+
+  await page.getByRole("textbox", { name: "Search projects" }).fill("missing")
+  await expect(page.getByText("No projects found for missing")).toBeVisible()
+  await expect(rows).toHaveCount(0)
+
+  await page.getByRole("button", { name: "Clear", exact: true }).click()
+  await expect(rows).toHaveCount(3)
+  await expect(row("Beta")).toBeVisible()
+})
+
+test("the home projects search spans servers and reveals collapsed projects", async ({ page }) => {
+  const gem = project({ id: "proj_gem", directory: "/remote/gem", name: "Gem" })
+  await mockStressTimeline(page)
+  await mockRemoteServer(page, { name: "Remote", directory: "/remote/gem", project: gem })
+  await seed(page, {
+    projects: {
+      local: [{ worktree: fixture.directory, expanded: true }],
+      [REMOTE_SERVER]: [{ worktree: gem.worktree, expanded: true }],
+    },
+    lastProject: { local: fixture.directory },
+  })
+  await page.goto("/")
+
+  const rows = page.locator("[data-home-row]")
+  const gemRow = page.locator('[data-component="home-project-row"]').filter({ hasText: "Gem" })
+  const remote = rows.filter({ hasText: "Remote" })
+  await expect(gemRow).toBeVisible()
+  await expect(rows).toHaveCount(4)
+
+  await remote.locator('[data-action="home-server-collapse"]').click()
+  await expect(gemRow).toHaveCount(0)
+
+  await page.getByRole("textbox", { name: "Search projects" }).fill("gem")
+  await expect(gemRow).toBeVisible()
+  await expect(rows).toHaveCount(2)
+
+  await page.getByRole("button", { name: "Clear", exact: true }).click()
+  await expect(rows).toHaveCount(3)
+  await expect(gemRow).toHaveCount(0)
+})
+
 test("the home projects column resizes with a persisted, clamped width", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openHome(page)
