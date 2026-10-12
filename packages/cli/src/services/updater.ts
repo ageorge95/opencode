@@ -1,10 +1,11 @@
-import { Global } from "@opencode/util/global"
+import { Global, Path } from "@opencode/util/global"
 import { AppProcess } from "@opencode/util/process"
 import { EffectFlock } from "@opencode/util/effect-flock"
 import { OPENCODE_ARTIFACT, OPENCODE_CHANNEL, OPENCODE_LOCAL, OPENCODE_VERSION } from "../version"
 import { Context, Duration, Effect, FileSystem, Layer, Option, Ref, Schema } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { parse, type ParseError } from "jsonc-parser"
+import fsNode from "node:fs"
 import path from "node:path"
 import { stripVTControlCharacters } from "node:util"
 import { RetainedImage } from "./retained-image"
@@ -124,6 +125,95 @@ export function decodePolicy(text: string): Policy | undefined {
   if (input.autoupdate === true) return "auto"
 }
 
+export function decodeNetworkBlock(text: string): boolean | undefined {
+  const errors: ParseError[] = []
+  const input: unknown = parse(text, errors, { allowTrailingComma: true })
+  if (errors.length || typeof input !== "object" || input === null) return
+  if ("block_opencode_claude_network" in input && typeof input.block_opencode_claude_network === "boolean") {
+    return input.block_opencode_claude_network
+  }
+}
+
+export function shouldBlockNetwork(): boolean {
+  try {
+    if (process.env.OPENCODE_CONFIG_CONTENT) {
+      const blocked = decodeNetworkBlock(process.env.OPENCODE_CONFIG_CONTENT)
+      if (blocked !== undefined) return blocked
+    }
+    if (process.env.OPENCODE_CONFIG && fsNode.existsSync(process.env.OPENCODE_CONFIG)) {
+      const blocked = decodeNetworkBlock(fsNode.readFileSync(process.env.OPENCODE_CONFIG, "utf8"))
+      if (blocked !== undefined) return blocked
+    }
+    const configDir = process.env.OPENCODE_CONFIG_DIR ?? Path.config
+    for (const name of ["opencode.json", "opencode.jsonc"]) {
+      const file = path.join(configDir, name)
+      if (!fsNode.existsSync(file)) continue
+      const blocked = decodeNetworkBlock(fsNode.readFileSync(file, "utf8"))
+      if (blocked !== undefined) return blocked
+    }
+  } catch {
+    // Ignore read errors
+  }
+  return false
+}
+
+const blockedHosts = ["opencode.ai", "claude.ai"]
+
+export function isBlockedHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().trim().replace(/\.+$/, "")
+  return blockedHosts.some((blocked) => host === blocked || host.endsWith(`.${blocked}`))
+}
+
+export function isBlockedUrl(urlString: string | URL): boolean {
+  if (urlString instanceof URL) return isBlockedHost(urlString.hostname)
+  if (typeof urlString !== "string") return false
+  try {
+    const parsed = new URL(urlString)
+    return isBlockedHost(parsed.hostname)
+  } catch {
+    try {
+      const parsed = new URL(`http://${urlString}`)
+      return isBlockedHost(parsed.hostname)
+    } catch {
+      return false
+    }
+  }
+}
+
+let installed = false
+
+export function installCliFetchBlocker() {
+  if (installed || typeof globalThis.fetch !== "function") return
+  installed = true
+  const originalFetch = globalThis.fetch
+  const wrappedFetch = async function (this: unknown, input: string | URL | Request, init?: RequestInit) {
+    if (shouldBlockNetwork()) {
+      let urlString: string
+      if (typeof input === "string") urlString = input
+      else if (input instanceof URL) urlString = input.href
+      else urlString = input.url
+      if (isBlockedUrl(urlString)) {
+        let host: string
+        try {
+          host = new URL(urlString).hostname
+        } catch {
+          try {
+            host = new URL(`http://${urlString}`).hostname
+          } catch {
+            host = urlString
+          }
+        }
+        throw new Error(
+          `Network request to ${host} is blocked by configuration (block_opencode_claude_network)`,
+        )
+      }
+    }
+    return originalFetch.call(this, input, init)
+  }
+  Object.assign(wrappedFetch, originalFetch)
+  globalThis.fetch = wrappedFetch as typeof fetch
+}
+
 const make = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem
   const global = yield* Global.Service
@@ -155,6 +245,16 @@ const make = Effect.gen(function* () {
       ),
     )
     return values.findLast((value) => value !== undefined) ?? "notify"
+  })
+
+  const readBlocked = Effect.fnUntraced(function* () {
+    const values = yield* Effect.forEach(["config.json", "opencode.json", "opencode.jsonc"], (name) =>
+      fs.readFileString(path.join(global.config, name)).pipe(
+        Effect.map(decodeNetworkBlock),
+        Effect.orElseSucceed(() => undefined),
+      ),
+    )
+    return values.findLast((value) => value !== undefined) ?? false
   })
 
   const exec = Effect.fnUntraced(function* (command: string[], timeout: Duration.Input = "10 seconds") {
@@ -249,6 +349,15 @@ const make = Effect.gen(function* () {
   }
 
   const release = Effect.fnUntraced(function* (method?: Method) {
+    if (yield* readBlocked()) {
+      return yield* Effect.fail(
+        new UpgradeError({
+          title: "Could not check for OpenCode updates",
+          detail: "Network requests to opencode.ai are blocked by configuration (block_opencode_claude_network).",
+          retry: "Disable network blocking in your configuration to check for updates.",
+        }),
+      )
+    }
     const distribution = method === "brew" ? "homebrew" : "npm"
     // Homebrew Core builds its formula on its own schedule, so the tap release does not describe it.
     const core = method === "brew" && installedFormula === "opencode"
@@ -365,6 +474,15 @@ const make = Effect.gen(function* () {
   }
 
   const upgrade = Effect.fnUntraced(function* (method: Method, input: string) {
+    if (yield* readBlocked()) {
+      return yield* Effect.fail(
+        new UpgradeError({
+          title: "Could not install OpenCode update",
+          detail: "Network requests to opencode.ai are blocked by configuration (block_opencode_claude_network).",
+          retry: "Disable network blocking in your configuration to upgrade.",
+        }),
+      )
+    }
     if (!parseReleaseVersion(input)) return yield* Effect.fail(new Error(`Invalid version: ${input}`))
     const version = input.trim().replace(/^v/, "")
     const packageName =
@@ -459,6 +577,10 @@ const make = Effect.gen(function* () {
         version: OPENCODE_VERSION,
         channel: OPENCODE_CHANNEL,
       })
+      return undefined
+    }
+    if (yield* readBlocked()) {
+      yield* Effect.logInfo("update check skipped", { reason: "network-blocked" })
       return undefined
     }
     const policy = yield* readPolicy()

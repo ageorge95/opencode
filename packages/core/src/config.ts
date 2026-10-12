@@ -241,9 +241,10 @@ export const layer = (options?: Options) =>
       const initial = yield* ConfigDiscovery.discover(options)
       let sources = initial
       let configs = yield* load(initial)
+      NetworkBlocker.installGlobalFetchBlocker()
       const syncNetworkBlocker = (entries: readonly Entry[]) => {
         const enabled = latest(entries, "block_opencode_claude_network")
-        if (enabled !== undefined) NetworkBlocker.setNetworkBlockerEnabled(enabled)
+        NetworkBlocker.setNetworkBlockerEnabled(enabled ?? false)
       }
       syncNetworkBlocker(configs)
       const updates = yield* PubSub.unbounded<Watcher.Update>()

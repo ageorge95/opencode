@@ -2,16 +2,15 @@
 import { marks } from "./lifecycle/marks"
 import { app } from "electron"
 import { acquireApplicationLock, configureApplication } from "./lifecycle/configure"
+import { installDesktopFetchBlocker } from "./network-blocking"
 import { startSidecarProbe } from "./service/sidecar-probe"
 import { registerStorageSnapshotHandler } from "./storage/snapshot"
 import { createEarlyWindow } from "./windows/early"
 import { rendererAssetsServed } from "./windows/protocol"
 import { registerRendererScheme } from "./windows/scheme"
 
-// This module stays small on purpose. Electron holds the ready event until the entry module has
-// finished, and the first window should be on screen before the rest of the main process — a few
-// hundred milliseconds of module evaluation and layers — loads. Configuration and the scheme must
-// precede ready; the window is created the moment ready fires; everything else is imported after.
+installDesktopFetchBlocker()
+
 configureApplication()
 
 if (acquireApplicationLock()) {

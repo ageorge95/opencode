@@ -5,20 +5,27 @@ import { Path } from "@opencode/util/global"
 
 const blockedHosts = ["opencode.ai", "claude.ai"]
 
-let blockerEnabled = false
+let blockerEnabled = checkInitialGlobalConfig()
 let installed = false
 
 export function isBlockedHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().trim()
+  const host = hostname.toLowerCase().trim().replace(/\.+$/, "")
   return blockedHosts.some((blocked) => host === blocked || host.endsWith(`.${blocked}`))
 }
 
 export function isBlockedUrl(urlString: string | URL): boolean {
+  if (urlString instanceof URL) return isBlockedHost(urlString.hostname)
+  if (typeof urlString !== "string") return false
   try {
-    const parsed = typeof urlString === "string" ? new URL(urlString) : urlString
+    const parsed = new URL(urlString)
     return isBlockedHost(parsed.hostname)
   } catch {
-    return false
+    try {
+      const parsed = new URL(`http://${urlString}`)
+      return isBlockedHost(parsed.hostname)
+    } catch {
+      return false
+    }
   }
 }
 
@@ -30,6 +37,20 @@ export function isNetworkBlockerEnabled(): boolean {
   return blockerEnabled
 }
 
+function checkFileForBlock(file: string): boolean | undefined {
+  if (!fs.existsSync(file)) return undefined
+  try {
+    const parsed: unknown = parse(fs.readFileSync(file, "utf8"))
+    if (parsed && typeof parsed === "object" && "block_opencode_claude_network" in parsed) {
+      const value = (parsed as { block_opencode_claude_network?: unknown }).block_opencode_claude_network
+      if (typeof value === "boolean") return value
+    }
+  } catch {
+    // Ignore read errors
+  }
+  return undefined
+}
+
 /**
  * Reads the global config file directly so the fetch wrapper can honor the
  * setting before the Effect config layer loads. The config layer refreshes
@@ -37,14 +58,35 @@ export function isNetworkBlockerEnabled(): boolean {
  */
 export function checkInitialGlobalConfig(): boolean {
   try {
-    const configDir = process.env.OPENCODE_CONFIG_DIR ?? Path.config
-    for (const name of ["opencode.json", "opencode.jsonc"]) {
-      const file = path.join(configDir, name)
-      if (!fs.existsSync(file)) continue
-      const parsed: unknown = parse(fs.readFileSync(file, "utf8"))
+    if (process.env.OPENCODE_CONFIG_CONTENT) {
+      const parsed: unknown = parse(process.env.OPENCODE_CONFIG_CONTENT)
       if (parsed && typeof parsed === "object" && "block_opencode_claude_network" in parsed) {
         const value = (parsed as { block_opencode_claude_network?: unknown }).block_opencode_claude_network
         if (typeof value === "boolean") return value
+      }
+    }
+
+    if (process.env.OPENCODE_CONFIG) {
+      const result = checkFileForBlock(process.env.OPENCODE_CONFIG)
+      if (result !== undefined) return result
+    }
+
+    const configDir = process.env.OPENCODE_CONFIG_DIR ?? Path.config
+    for (const name of ["opencode.json", "opencode.jsonc"]) {
+      const result = checkFileForBlock(path.join(configDir, name))
+      if (result !== undefined) return result
+    }
+
+    if (!process.env.OPENCODE_CONFIG_DIR) {
+      const cwd = process.cwd()
+      for (const name of [
+        path.join(cwd, "opencode.json"),
+        path.join(cwd, "opencode.jsonc"),
+        path.join(cwd, ".opencode", "opencode.jsonc"),
+        path.join(cwd, ".opencode", "opencode.json"),
+      ]) {
+        const result = checkFileForBlock(name)
+        if (result !== undefined) return result
       }
     }
   } catch {
@@ -67,8 +109,18 @@ export function installGlobalFetchBlocker() {
       else if (input instanceof URL) urlString = input.href
       else urlString = input.url
       if (isBlockedUrl(urlString)) {
+        let host: string
+        try {
+          host = new URL(urlString).hostname
+        } catch {
+          try {
+            host = new URL(`http://${urlString}`).hostname
+          } catch {
+            host = urlString
+          }
+        }
         throw new Error(
-          `Network request to ${new URL(urlString).hostname} is blocked by configuration (block_opencode_claude_network)`,
+          `Network request to ${host} is blocked by configuration (block_opencode_claude_network)`,
         )
       }
     }
@@ -78,5 +130,7 @@ export function installGlobalFetchBlocker() {
   Object.assign(wrappedFetch, originalFetch)
   globalThis.fetch = wrappedFetch as typeof fetch
 }
+
+installGlobalFetchBlocker()
 
 export * as NetworkBlocker from "./network-blocker.js"

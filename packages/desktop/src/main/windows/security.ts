@@ -22,7 +22,7 @@ export function allowRendererPermissions(win: BrowserWindow) {
   })
 }
 
-export function wireNavigationPolicy(win: BrowserWindow, openExternalURL: (url: string) => unknown) {
+export function wireNavigationPolicy(win: BrowserWindow, openExternalURL: (url: string) => void) {
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (!isRendererUrl(url)) openExternalURL(url)
 
@@ -35,10 +35,25 @@ export function wireNavigationPolicy(win: BrowserWindow, openExternalURL: (url: 
   })
 }
 
+const blockedNetworkUrls = [
+  "*://opencode.ai/*",
+  "*://*.opencode.ai/*",
+  "*://claude.ai/*",
+  "*://*.claude.ai/*",
+  "ws://opencode.ai/*",
+  "ws://*.opencode.ai/*",
+  "wss://opencode.ai/*",
+  "wss://*.opencode.ai/*",
+  "ws://claude.ai/*",
+  "ws://*.claude.ai/*",
+  "wss://claude.ai/*",
+  "wss://*.claude.ai/*",
+]
+
 export function wireNetworkBlocking(win: BrowserWindow) {
   win.webContents.session.webRequest.onBeforeRequest(
     {
-      urls: ["*://opencode.ai/*", "*://*.opencode.ai/*", "*://claude.ai/*", "*://*.claude.ai/*"],
+      urls: blockedNetworkUrls,
     },
     (_details, callback) => {
       callback({ cancel: shouldBlockNetworkRequest() })

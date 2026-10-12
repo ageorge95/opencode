@@ -36,11 +36,19 @@ describe("network-blocker", () => {
     expect(isBlockedHost("api.anthropic.com")).toBe(false)
     expect(isBlockedHost("github.com")).toBe(false)
 
+    expect(isBlockedHost("opencode.ai.")).toBe(true)
+    expect(isBlockedHost("models.opencode.ai.")).toBe(true)
+    expect(isBlockedHost("claude.ai.")).toBe(true)
+
     expect(isBlockedUrl("https://opencode.ai/")).toBe(true)
     expect(isBlockedUrl("https://models.opencode.ai/api.json")).toBe(true)
     expect(isBlockedUrl("http://claude.ai/chat")).toBe(true)
     expect(isBlockedUrl("https://api.claude.ai/v1")).toBe(true)
     expect(isBlockedUrl(new URL("https://opencode.ai/docs"))).toBe(true)
+    expect(isBlockedUrl("opencode.ai")).toBe(true)
+    expect(isBlockedUrl("models.opencode.ai/api.json")).toBe(true)
+    expect(isBlockedUrl("claude.ai/chat")).toBe(true)
+    expect(isBlockedUrl("https://opencode.ai.")).toBe(true)
 
     expect(isBlockedUrl("https://api.anthropic.com/v1/messages")).toBe(false)
     expect(isBlockedUrl("https://github.com/anomalyco/opencode")).toBe(false)

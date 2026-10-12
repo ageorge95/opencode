@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import { action } from "./updater-action"
-import { decodePolicy } from "./updater"
+import {
+  decodeNetworkBlock,
+  decodePolicy,
+  installCliFetchBlocker,
+  isBlockedHost,
+  isBlockedUrl,
+} from "./updater"
 
 describe("updater", () => {
   test("reads update policy from JSONC", () => {
@@ -8,6 +14,23 @@ describe("updater", () => {
     expect(decodePolicy('{ "update": "disable" }')).toBe("disable")
     expect(decodePolicy('{ "update": "auto" }')).toBe("auto")
     expect(decodePolicy('{ "update": "invalid" }')).toBeUndefined()
+  })
+
+  test("reads network blocking setting from JSONC", () => {
+    expect(decodeNetworkBlock('{ // preference\n "block_opencode_claude_network": true,\n}')).toBe(true)
+    expect(decodeNetworkBlock('{ "block_opencode_claude_network": false }')).toBe(false)
+    expect(decodeNetworkBlock('{ "block_opencode_claude_network": "invalid" }')).toBeUndefined()
+    expect(decodeNetworkBlock('{ "update": "auto" }')).toBeUndefined()
+  })
+
+  test("identifies blocked updater hosts and urls", () => {
+    expect(isBlockedHost("opencode.ai")).toBe(true)
+    expect(isBlockedHost("models.opencode.ai")).toBe(true)
+    expect(isBlockedHost("claude.ai")).toBe(true)
+    expect(isBlockedHost("github.com")).toBe(false)
+
+    expect(isBlockedUrl("https://opencode.ai/update/api/latest/cli/npm")).toBe(true)
+    expect(isBlockedUrl("https://formulae.brew.sh/api/formula/opencode.json")).toBe(false)
   })
 
   test("maps the v1 update policy", () => {

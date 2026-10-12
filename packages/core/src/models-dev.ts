@@ -344,6 +344,11 @@ export const layer = (options?: Options) =>
       })
 
       const fetchApi = Effect.fn("ModelsDev.fetchApi")(function* () {
+        if (NetworkBlocker.isNetworkBlockerEnabled() && NetworkBlocker.isBlockedUrl(source)) {
+          return yield* Effect.fail(
+            new Error(`Network request to ${source} is blocked by configuration (block_opencode_claude_network)`),
+          )
+        }
         return yield* HttpClientRequest.get(`${source}/api.json`).pipe(
           HttpClientRequest.setHeader("User-Agent", userAgent),
           http.execute,
@@ -388,6 +393,10 @@ export const layer = (options?: Options) =>
         if (fromFile) return normalize(fromFile)
         const cached = options?.file ? undefined : yield* loadFromCache()
         if (cached) return normalize(cached.catalog)
+        if (NetworkBlocker.isNetworkBlockerEnabled() && NetworkBlocker.isBlockedUrl(source)) {
+          const bundled = yield* loadSnapshot
+          return bundled ? bundled : []
+        }
         const bundled = yield* loadSnapshot
         if (bundled) return bundled
         if (!fetch) return []
@@ -396,6 +405,7 @@ export const layer = (options?: Options) =>
           Effect.gen(function* () {
             const stored = options?.file ? undefined : yield* loadFromCache()
             if (stored) return stored.catalog
+            if (NetworkBlocker.isNetworkBlockerEnabled() && NetworkBlocker.isBlockedUrl(source)) return {}
             return yield* fetchAndWrite()
           }),
         )

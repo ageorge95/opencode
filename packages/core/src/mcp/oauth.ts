@@ -37,7 +37,7 @@ const refreshKey = (url: string | URL, init: RequestInit | undefined) => {
 
 // Bun's and Node's fetch types both apply here and the SDK's FetchLike wants Bun's Response, so the
 // overload is picked by annotation and clone() is pinned to the type it was called on.
-const base: FetchLike = fetch
+const base: FetchLike = (...args) => globalThis.fetch(...args)
 const share = (pending: ReturnType<FetchLike>) => pending.then((response) => response.clone() as typeof response)
 
 const send: FetchLike = (url, init) => {

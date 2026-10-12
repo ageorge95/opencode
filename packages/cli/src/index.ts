@@ -19,6 +19,7 @@ import { Heap } from "./heap"
 import { CpuProfile } from "./cpu-profile"
 
 ensurePluginRuntime()
+Updater.installCliFetchBlocker()
 
 if (process.env.OPENCODE_SSH_ASKPASS_PORT) {
   const { askpass } = await import("./ssh-askpass")
