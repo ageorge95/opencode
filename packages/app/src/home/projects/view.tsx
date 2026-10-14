@@ -1,4 +1,4 @@
-import { createMemo, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
+import { type Accessor, createMemo, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Popover } from "@kobalte/core/popover"
 import { DragDropProvider, PointerSensor } from "@dnd-kit/solid"
@@ -7,6 +7,7 @@ import { AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/d
 import { RestrictToVerticalAxis } from "@dnd-kit/abstract/modifiers"
 import { RestrictToElement } from "@dnd-kit/dom/modifiers"
 import { ScrollView } from "@opencode/ui/scroll-view"
+import { ResizeHandle } from "@opencode/ui/resize-handle"
 import {
   displayName,
   getProjectAvatarSource,
@@ -19,7 +20,13 @@ import { Button } from "@opencode/ui/button"
 import { Spinner } from "@opencode/ui/spinner"
 import { Menu } from "@opencode/ui/menu"
 import { Tooltip } from "@opencode/ui/tooltip"
-import type { HomeProjectSelection, LocalProject } from "@/shell/state/layout"
+import {
+  DEFAULT_HOME_PROJECTS_WIDTH,
+  type HomeProjectSelection,
+  type LocalProject,
+  MAX_HOME_PROJECTS_WIDTH,
+  MIN_HOME_PROJECTS_WIDTH,
+} from "@/shell/state/layout"
 import { ServerConnection } from "@/runtime/server/registry"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
@@ -49,6 +56,10 @@ export type HomeProjectsViewProps = {
   recentlyClosed: LocalProject[]
   selection: HomeProjectSelection
   homedir: string
+  projectsWidth?: Accessor<number>
+  maxProjectsWidth?: Accessor<number>
+  onResizeProjects?: (width: number) => void
+  onResetProjectsWidth?: () => void
   serverHealth: (server: ServerConnection.Any) => ServerHealth | undefined
   projectsForServer: (server: ServerConnection.Any) => LocalProject[]
   collapsed: (server: ServerConnection.Any) => boolean
@@ -173,7 +184,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
         props.dropdown
           ? "flex max-h-[min(60dvh,calc(var(--kb-popper-content-available-height)-12px))] min-h-0 min-w-0 flex-col overflow-hidden"
           : `
-        mt-6 flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden
+        relative mt-6 flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden lg:overflow-visible
         lg:sticky lg:top-14 lg:mt-14 lg:h-[calc(100cqh-56px)] lg:self-start lg:pt-[52px]
       `
       }
@@ -184,7 +195,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
       }}
     >
       <Show when={!props.dropdown}>
-        <div class="flex h-7 min-w-0 shrink-0 items-center justify-between pl-1.5 pr-3">
+        <div class="flex h-7 min-w-0 shrink-0 items-center justify-between ps-1.5 pe-3">
           <div class="text-v2-text-text-muted [font-weight:530]">{props.language.t("home.projects")}</div>
           <Show when={props.servers.length === 1 && !(props.projects.length === 0 && props.recentlyClosed.length > 0)}>
             <Tooltip placement="bottom" value={props.language.t("home.project.add")}>
@@ -226,7 +237,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
           fallback={
             <Show when={props.servers[0]}>
               {(server) => (
-                <div class={props.dropdown ? "" : "pr-3"}>
+                <div class={props.dropdown ? "" : "pe-3"}>
                   <Show
                     when={props.projects.length > 0}
                     fallback={<HomeProjectEmpty {...props} server={server()} items={props.recentlyClosed} />}
@@ -250,7 +261,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
             </Show>
           }
         >
-          <div class={`flex min-w-0 flex-col ${props.dropdown ? "gap-1" : "gap-4 pr-3"}`}>
+          <div class={`flex min-w-0 flex-col ${props.dropdown ? "gap-1" : "gap-4 pe-3"}`}>
             <For each={props.servers}>
               {(item) => {
                 const projects = () => props.projectsForServer(item)
@@ -306,6 +317,19 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
         onOpenHelp={props.onOpenHelp}
         language={props.language}
       />
+      <Show when={!props.dropdown && props.onResizeProjects}>
+        <div data-slot="home-projects-resize" class="hidden lg:block">
+          <div data-slot="home-projects-resize-line" />
+          <ResizeHandle
+            direction="horizontal"
+            size={props.projectsWidth?.() ?? DEFAULT_HOME_PROJECTS_WIDTH}
+            min={MIN_HOME_PROJECTS_WIDTH}
+            max={props.maxProjectsWidth?.() ?? MAX_HOME_PROJECTS_WIDTH}
+            onResize={props.onResizeProjects!}
+            onDblClick={props.onResetProjectsWidth}
+          />
+        </div>
+      </Show>
     </aside>
   )
 }
@@ -318,7 +342,7 @@ export function HomeUtilityNav(props: {
 }) {
   return (
     <div
-      class={`${props.class ?? ""} min-w-0 flex-row justify-between gap-1 lg:flex-col lg:justify-start lg:pr-3 [&>button]:w-auto lg:[&>button]:w-full`}
+      class={`${props.class ?? ""} min-w-0 flex-row justify-between gap-1 lg:flex-col lg:justify-start lg:pe-3 [&>button]:w-auto lg:[&>button]:w-full`}
     >
       <HomeProjectNavButton
         type="button"
@@ -396,7 +420,7 @@ function HomeServerRow(props: {
           <span
             data-action="home-server-collapse"
             class={`
-            -ml-0.5 -mr-1.5 inline-flex size-5 shrink-0 items-center justify-center
+            -ms-0.5 -me-1.5 inline-flex size-5 shrink-0 items-center justify-center
             rounded-[4px] text-v2-icon-icon-muted
           `}
             classList={{
@@ -424,7 +448,7 @@ function HomeServerRow(props: {
               style={{ transform: `rotate(${props.collapsed || !canToggle() ? -90 : 0}deg)` }}
             />
           </span>
-          <div class="flex size-4 shrink-0 items-center justify-center -mr-0.5">
+          <div class="flex size-4 shrink-0 items-center justify-center -me-0.5">
             <ServerHealthIndicator
               health={props.health}
               connecting={props.server.type === "extension" && props.server.connecting}
@@ -456,7 +480,7 @@ function HomeServerRow(props: {
         <div
           data-slot="home-row-actions"
           class={`
-          hover-reveal absolute bottom-0 right-1 top-0 flex items-center gap-1 rounded-r-[6px] pl-2
+          hover-reveal absolute bottom-0 end-1 top-0 flex items-center gap-1 rounded-e-[6px] ps-2
           group-hover/server:opacity-100 focus-within:opacity-100 data-[menu=true]:opacity-100
         `}
           data-menu={props.contextMenuOpen(contextMenuID())}
@@ -597,7 +621,7 @@ function HomeProjectEmpty(
         <span class={HOME_PROJECT_NAV_LABEL}>{props.language.t("home.project.add")}</span>
       </HomeProjectNavButton>
       <Show when={props.items.length > 0}>
-        <div class="mt-3 flex h-7 min-w-0 shrink-0 items-center pl-1.5 pr-3">
+        <div class="mt-3 flex h-7 min-w-0 shrink-0 items-center ps-1.5 pe-3">
           <div class="text-v2-text-text-faint [font-weight:530]">{props.language.t("home.recentlyClosed")}</div>
         </div>
         <For each={props.items}>
@@ -733,14 +757,14 @@ function HomeProjectRow(
         }}
       >
         <HomeProjectAvatar project={props.project} />
-        <span data-slot="home-row-label" class={HOME_PROJECT_NAV_LABEL}>
+        <span data-slot="home-row-label" class={HOME_PROJECT_NAV_LABEL} title={displayName(props.project)}>
           {displayName(props.project)}
         </span>
       </HomeProjectNavButton>
       <div
         data-slot="home-row-actions"
         class={`
-          hover-reveal absolute bottom-0 right-1 top-0 flex items-center gap-1 rounded-r-[6px] pl-2
+          hover-reveal absolute bottom-0 end-1 top-0 flex items-center gap-1 rounded-e-[6px] ps-2
           group-hover/project:opacity-100 focus-within:opacity-100 data-[menu=true]:opacity-100
         `}
         data-menu={props.contextMenuOpen(contextMenuID())}
@@ -814,7 +838,7 @@ function HomeProjectNavButton(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>
     <button
       {...rest}
       class={`
-        flex h-7 min-w-0 w-full shrink-0 cursor-default items-center gap-2 rounded-[6px] bg-transparent px-1.5 text-left
+        flex h-7 min-w-0 w-full shrink-0 cursor-default items-center gap-2 rounded-[6px] bg-transparent px-1.5 text-start
         text-v2-text-text-muted [font-weight:440] transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out
         hover:bg-v2-background-bg-layer-01 hover:text-v2-text-text-base
         data-[selected]:bg-v2-background-bg-layer-03 data-[selected]:text-v2-text-text-base
