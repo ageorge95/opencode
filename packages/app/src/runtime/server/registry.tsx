@@ -9,10 +9,6 @@ import { ServerHttp, ServerHttpBase, ServerKey, serverState } from "./persistenc
 
 type ServerState = ReturnType<typeof serverState>["current"]["Type"]
 
-// Retain closed paths until reopened so settings can exclude them from the server inventory.
-// The Home page independently limits the visible recently closed entries.
-export const RECENTLY_CLOSED_DISPLAY_LIMIT = 5
-
 export function normalizeServerUrl(input: string) {
   const trimmed = input.trim()
 

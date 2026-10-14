@@ -6,7 +6,7 @@ import { type LocalProject } from "@/shell/state/layout"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
 import { ServerConnection } from "@/runtime/server/registry"
-import { closeHomeProject, errorMessage, homeProjectDirectories } from "@/shell/layout/helpers"
+import { errorMessage, homeProjectDirectories } from "@/shell/layout/helpers"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { showToast } from "@/shell/notifications/toast"
 import { useDialog } from "@opencode/ui/context/dialog"
@@ -102,13 +102,11 @@ export function createHomeProjectsController(home: HomeController) {
     },
     project: {
       list: home.project.list,
-      recentlyClosed: home.project.recentlyClosed,
-      homedir: home.project.homedir,
+      recentlyClosedForServer: home.project.recentlyClosedForServer,
       select: (conn: ServerConnection.Any, directory: string) => {
         if (authenticate(conn, (next) => home.project.select(next, directory))) return
         home.project.select(conn, directory)
       },
-      add: home.project.add,
       openNewSession: (conn: ServerConnection.Any, directory: string) => {
         if (authenticate(conn, (next) => home.project.openProjectNewSession(next, directory))) return
         home.project.openProjectNewSession(conn, directory)
@@ -168,14 +166,10 @@ export function createHomeProjectsController(home: HomeController) {
         choose(conn)
       },
       close: (conn: ServerConnection.Any, directory: string) => {
-        const next = closeHomeProject(
-          home.selection.value(),
-          ServerConnection.key(conn),
-          home.server.context(conn).projects,
-          directory,
-        )
-
-        if (next) home.selection.set(next)
+        home.server.context(conn).projects.close(directory)
+      },
+      reopen: (conn: ServerConnection.Any, directory: string) => {
+        home.project.reopen(conn, directory)
       },
       move: (conn: ServerConnection.Any, worktree: string, index: number) => {
         home.server.context(conn).projects.move(worktree, index)

@@ -234,6 +234,31 @@ test("the home projects column resizes with a persisted, clamped width", async (
   await expect.poll(width).toBe(320)
 })
 
+test("a closed project stays listed with its sessions and reopens from the menu", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openHome(page)
+
+  const project = page.locator('[data-component="home-project-row"]').filter({ hasText: fixture.project.name })
+  const container = project.locator("..")
+  await expect(project).toBeVisible()
+
+  await container.getByRole("button", { name: "More options", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Close", exact: true }).click()
+
+  await expect(container).toHaveAttribute("data-closed", "")
+  await expect(project.getByText("Closed", { exact: true })).toBeVisible()
+  await expect(container).toHaveCSS("opacity", "0.6")
+
+  await project.click()
+  await expect(project).toHaveAttribute("data-selected", "")
+  await expect(row(page, fixture.expected.targetTitle)).toBeVisible()
+
+  await container.getByRole("button", { name: "More options", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Open project", exact: true }).click()
+  await expect(container).not.toHaveAttribute("data-closed", "")
+  await expect(project.getByText("Closed", { exact: true })).toHaveCount(0)
+})
+
 test("adding a project to a signed-out server re-pairs it, then continues at the paired address", async ({ page }) => {
   // The saved address rejects the new token, so saving moves the server to the link's address.
   const paired = "http://127.0.0.1:4098"
@@ -353,7 +378,9 @@ for (const state of [
       const project = page.locator('[data-component="home-project-row"]').filter({ hasText: name })
       await project.locator("..").getByRole("button", { name: "More options", exact: true }).click()
       await page.getByRole("menuitem", { name: "Close", exact: true }).click()
-      await expect(project).toHaveCount(0)
+      // A closed project stays listed, dimmed and labelled, so its sessions remain reachable.
+      await expect(project.locator("..")).toHaveAttribute("data-closed", "")
+      await expect(project.getByText("Closed", { exact: true })).toBeVisible()
       await page.locator(`[data-titlebar-tab-link][href="${sessionHref(fixture.targetID)}"]`).click()
     }
 

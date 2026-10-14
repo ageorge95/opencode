@@ -1,6 +1,6 @@
 import { createSimpleContext } from "@opencode/ui/context"
 import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, untrack } from "solid-js"
-import { createServerProjects, RECENTLY_CLOSED_DISPLAY_LIMIT, ServerConnection, useServers } from "./registry"
+import { createServerProjects, ServerConnection, useServers } from "./registry"
 import { pathKey } from "@/workspaces/path-key"
 import { useServerHealth } from "@/runtime/server/health"
 import { createServerSdkContext } from "./client"
@@ -235,13 +235,13 @@ function createServerController(
   const detailsForSession = (session: SessionInfo) =>
     resolveSessionDetailsProject(session, projectsList(), sync.data.project)
 
+  // Every closed project stays listed on Home, so the closed set is not capped for display.
   const recentlyClosedList = createMemo(() => {
     const known = new Set(sync.data.project.map((project) => pathKey(project.worktree)))
 
     return projects
       .recentlyClosed()
       .filter((worktree) => known.has(pathKey(worktree)))
-      .slice(0, RECENTLY_CLOSED_DISPLAY_LIMIT)
       .map((worktree) => enrich({ worktree, expanded: false }))
   })
 

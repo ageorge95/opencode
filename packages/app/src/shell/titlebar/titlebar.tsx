@@ -381,10 +381,12 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
 
                   const project =
                     projects?.list().find((item) => item.worktree === selection.directory) ??
+                    projects?.recentlyClosed().find((item) => item.worktree === selection.directory) ??
                     projects?.list().find((item) => item.worktree === projects.last()) ??
                     projects?.list()[0]
 
                   if (conn && project) {
+                    projects?.open(project.worktree)
                     void tabs.newDraft({ server: ServerConnection.key(conn), directory: project.worktree }, "")
 
                     return

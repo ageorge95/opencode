@@ -35,19 +35,6 @@ export function toggleHomeProjectSelection(
   return { server, directory }
 }
 
-export function closeHomeProject(
-  selected: HomeProjectSelection | undefined,
-  server: ServerConnection.Key,
-  projects: { close: (directory: string) => void },
-  directory: string,
-) {
-  projects.close(directory)
-
-  if (selected?.server === server && selected.directory === directory) return { server }
-
-  return selected
-}
-
 export function homeProjectDirectories(result: string | string[] | null) {
   if (!result) return []
 

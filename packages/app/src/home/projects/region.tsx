@@ -19,9 +19,8 @@ export function HomeProjects(props: {
       onResetProjectsWidth={props.projects.resetWidth}
       servers={props.projects.server.list()}
       projects={props.projects.project.list()}
-      recentlyClosed={props.projects.project.recentlyClosed()}
+      recentlyClosedForServer={props.projects.project.recentlyClosedForServer}
       selection={props.projects.selection.value()}
-      homedir={props.projects.project.homedir()}
       serverHealth={props.projects.server.health}
       projectsForServer={props.projects.server.projects}
       collapsed={props.projects.server.collapsed}
@@ -39,7 +38,6 @@ export function HomeProjects(props: {
       onHideServer={props.projects.server.hide}
       onMoveProject={props.projects.project.move}
       onSelectProject={props.projects.project.select}
-      onAddProjects={props.projects.project.add}
       onOpenProjectNewSession={props.projects.project.openNewSession}
       canImportSession={props.projects.project.canImportSession}
       onImportSession={props.projects.project.importSession}
@@ -47,6 +45,7 @@ export function HomeProjects(props: {
       onRevealProject={props.projects.project.reveal}
       onClearNotifications={props.projects.project.clearNotifications}
       onCloseProject={props.projects.project.close}
+      onReopenProject={props.projects.project.reopen}
       onOpenSettings={props.projects.utility.settings}
       onOpenHelp={props.projects.utility.help}
     />

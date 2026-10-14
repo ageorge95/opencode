@@ -503,6 +503,7 @@ export const dict = {
   "home.projects.search.placeholder": "Search projects",
   "home.projects.search.noResults": "No projects found for {{query}}",
   "home.project.add": "Add project",
+  "home.project.closed": "Closed",
   "home.project.missing.title": "Project folder not found",
   "home.project.missing.description": "The folder for {{name}} no longer exists.",
   "home.recentlyClosed": "Recently closed",
