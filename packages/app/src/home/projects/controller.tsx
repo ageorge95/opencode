@@ -84,6 +84,7 @@ export function createHomeProjectsController(home: HomeController) {
       health: home.server.health,
       label: home.server.label,
       projects: home.project.forServer,
+      closedProjects: home.project.closedForServer,
       collapsed: (conn: ServerConnection.Any) => state().collapsed[ServerConnection.key(conn)] ?? false,
       toggleCollapsed: (conn: ServerConnection.Any) => {
         const key = ServerConnection.key(conn)
@@ -166,6 +167,10 @@ export function createHomeProjectsController(home: HomeController) {
         choose(conn)
       },
       hide: (conn: ServerConnection.Any, project: LocalProject) => home.server.context(conn).projects.hide(project),
+      reopen: (conn: ServerConnection.Any, project: LocalProject) => {
+        if (authenticate(conn, (next) => home.project.reopen(next, project.worktree))) return
+        home.project.reopen(conn, project.worktree)
+      },
       canReveal: revealProject.available,
       reveal: revealProject.reveal,
     },
