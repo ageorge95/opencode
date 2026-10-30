@@ -114,11 +114,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
               </Show>
             </bdi>
             <Show when={props.servers.length > 1 && server()}>
-              {(server) => (
-                <bdi class="truncate text-v2-text-text-muted opacity-70">
-                  {props.serverLabel(server())}
-                </bdi>
-              )}
+              {(server) => <bdi class="truncate text-v2-text-text-muted opacity-70">{props.serverLabel(server())}</bdi>}
             </Show>
           </span>
           <Icon name="chevron-down" size="small" class="shrink-0 text-v2-icon-icon-muted" />
@@ -160,11 +156,27 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
 }
 
 function HomeProjectsPanel(props: HomeProjectsViewProps) {
-  const [contextMenu, setContextMenu] = createStore<{ open: string | undefined }>({ open: undefined })
+  const [state, setState] = createStore<{ open: string | undefined; search: string }>({ open: undefined, search: "" })
+
+  const query = () => state.search.trim()
+  const searching = () => query().length > 0
+
+  const matches = (project: LocalProject) => {
+    const value = query().toLowerCase()
+
+    return !value || displayName(project).toLowerCase().includes(value)
+  }
+
+  const visible = (items: LocalProject[]) => (searching() ? items.filter(matches) : items)
+
+  // A search spans every added project, so servers without a match step aside and
+  // collapsed servers expand for their matching projects.
+  const visibleServers = () =>
+    searching() ? props.servers.filter((server) => visible(props.projectsForServer(server)).length > 0) : props.servers
 
   const contextMenuProps = {
-    contextMenuOpen: (id: string) => contextMenu.open === id,
-    onSetContextMenuOpen: (id: string, open: boolean) => setContextMenu("open", open ? id : undefined),
+    contextMenuOpen: (id: string) => state.open === id,
+    onSetContextMenuOpen: (id: string, open: boolean) => setState("open", open ? id : undefined),
   }
 
   return (
@@ -208,6 +220,45 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
           </Show>
         </div>
       </Show>
+      <div
+        data-component="home-project-search"
+        class={`
+          flex h-7 min-w-0 shrink-0 items-center gap-1.5 rounded-[6px] bg-v2-background-bg-layer-02/60 px-2
+          text-v2-icon-icon-muted transition-[background-color] duration-[120ms] ease-in-out
+          focus-within:bg-v2-background-bg-layer-02 ${props.dropdown ? "" : "me-3"}
+        `}
+      >
+        <Icon name="magnifying-glass" size="small" class="shrink-0" />
+        <input
+          class={`
+            min-w-0 flex-1 border-0 bg-transparent text-[13px] leading-[var(--line-height-compact)] tracking-[-0.04px]
+            text-v2-text-text-base [font-weight:440] outline-none placeholder:text-v2-text-text-faint
+          `}
+          type="text"
+          value={state.search}
+          placeholder={props.language.t("home.projects.search.placeholder")}
+          aria-label={props.language.t("home.projects.search.placeholder")}
+          onInput={(event) => setState("search", event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return
+
+            event.preventDefault()
+            setState("search", "")
+            event.currentTarget.blur()
+          }}
+        />
+        <Show when={searching()}>
+          <IconButton
+            type="button"
+            variant="ghost-muted"
+            size="small"
+            class="shrink-0"
+            icon={<Icon name="close" size="large" class="text-v2-icon-icon-muted" />}
+            aria-label={props.language.t("common.clear")}
+            onClick={() => setState("search", "")}
+          />
+        </Show>
+      </div>
       <div data-slot="home-projects-scroll" class="relative flex min-h-0 min-w-0 shrink flex-col">
         <div data-slot="home-projects-viewport" data-scrollable class="min-h-0 flex-1 overflow-y-auto">
           <Show when={props.dropdown && props.servers.length === 1}>
@@ -226,16 +277,28 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
               props.servers.length > 1 ||
               props.servers.some(
                 (server) =>
-                  signInRequired(server, props.serverHealth(server)) ||
-                  (server.type === "plugin" && server.connecting),
+                  signInRequired(server, props.serverHealth(server)) || (server.type === "plugin" && server.connecting),
               )
             }
             fallback={
               <Show when={props.servers[0]}>
                 {(server) => (
                   <div class={props.dropdown ? "" : "pe-3"}>
-                    <Show when={props.projects.length > 0} fallback={<HomeProjectEmpty {...props} server={server()} />}>
-                      <HomeProjectList {...props} {...contextMenuProps} server={server()} items={props.projects} />
+                    <Show
+                      when={props.projects.length > 0 || searching()}
+                      fallback={<HomeProjectEmpty {...props} server={server()} />}
+                    >
+                      <Show
+                        when={visible(props.projects).length > 0}
+                        fallback={<HomeProjectNoMatch language={props.language} query={query()} />}
+                      >
+                        <HomeProjectList
+                          {...props}
+                          {...contextMenuProps}
+                          server={server()}
+                          items={visible(props.projects)}
+                        />
+                      </Show>
                       <Show when={props.dropdown}>
                         <HomeProjectNavButton
                           type="button"
@@ -254,54 +317,69 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
               </Show>
             }
           >
-            <div class={`flex min-w-0 flex-col ${props.dropdown ? "gap-1" : "gap-4 pe-3"}`}>
-              <For each={props.servers}>
-                {(item) => {
-                  const projects = () => props.projectsForServer(item)
-                  const healthy = () => !!props.serverHealth(item)?.healthy
-                  const hasProjects = () => projects().length > 0
-                  const collapsed = () => props.collapsed(item)
-                  const authentication = () => signInRequired(item, props.serverHealth(item))
-                  const connecting = () => item.type === "plugin" && item.connecting
+            <Show
+              when={!searching() || visibleServers().length > 0}
+              fallback={<HomeProjectNoMatch language={props.language} query={query()} />}
+            >
+              <div class={`flex min-w-0 flex-col ${props.dropdown ? "gap-1" : "gap-4 pe-3"}`}>
+                <For each={visibleServers()}>
+                  {(item) => {
+                    const projects = () => visible(props.projectsForServer(item))
+                    const healthy = () => !!props.serverHealth(item)?.healthy
+                    const hasProjects = () => projects().length > 0
+                    const collapsed = () => props.collapsed(item)
+                    const authentication = () => signInRequired(item, props.serverHealth(item))
+                    const connecting = () => item.type === "plugin" && item.connecting
 
-                  return (
-                    <div class="flex min-w-0 flex-col gap-1">
-                      <HomeServerRow
-                        server={item}
-                        {...props}
-                        {...contextMenuProps}
-                        selected={props.selection.server === ServerConnection.key(item) && !props.selection.directory}
-                        collapsed={collapsed()}
-                        health={props.serverHealth(item)}
-                      />
-                      <Show when={authentication() || connecting()}>
-                        <div class="mx-3 h-px bg-v2-border-border-base" />
-                        <div class="px-1.5 py-1">
-                          <Button
-                            data-action="home-server-authenticate"
-                            class="w-full"
-                            size="small"
-                            variant="neutral"
-                            disabled={connecting()}
-                            aria-busy={!!connecting()}
-                            onClick={() => props.onAuthenticateServer?.(item)}
-                          >
-                            <Show when={connecting()}>
-                              <Loader class="size-3.5" />
-                            </Show>
-                            {props.language.t(connecting() ? "server.status.connecting" : "server.action.authenticate")}
-                          </Button>
-                        </div>
-                      </Show>
-                      <Show when={healthy() && !authentication() && !connecting() && hasProjects() && !collapsed()}>
-                        <div class="mx-3 h-px bg-v2-border-border-base" />
-                        <HomeProjectList {...props} {...contextMenuProps} server={item} items={projects()} />
-                      </Show>
-                    </div>
-                  )
-                }}
-              </For>
-            </div>
+                    return (
+                      <div class="flex min-w-0 flex-col gap-1">
+                        <HomeServerRow
+                          server={item}
+                          {...props}
+                          {...contextMenuProps}
+                          selected={props.selection.server === ServerConnection.key(item) && !props.selection.directory}
+                          collapsed={collapsed()}
+                          health={props.serverHealth(item)}
+                        />
+                        <Show when={authentication() || connecting()}>
+                          <div class="mx-3 h-px bg-v2-border-border-base" />
+                          <div class="px-1.5 py-1">
+                            <Button
+                              data-action="home-server-authenticate"
+                              class="w-full"
+                              size="small"
+                              variant="neutral"
+                              disabled={connecting()}
+                              aria-busy={!!connecting()}
+                              onClick={() => props.onAuthenticateServer?.(item)}
+                            >
+                              <Show when={connecting()}>
+                                <Loader class="size-3.5" />
+                              </Show>
+                              {props.language.t(
+                                connecting() ? "server.status.connecting" : "server.action.authenticate",
+                              )}
+                            </Button>
+                          </div>
+                        </Show>
+                        <Show
+                          when={
+                            healthy() &&
+                            !authentication() &&
+                            !connecting() &&
+                            hasProjects() &&
+                            (!collapsed() || searching())
+                          }
+                        >
+                          <div class="mx-3 h-px bg-v2-border-border-base" />
+                          <HomeProjectList {...props} {...contextMenuProps} server={item} items={projects()} />
+                        </Show>
+                      </div>
+                    )
+                  }}
+                </For>
+              </div>
+            </Show>
           </Show>
         </div>
       </div>
@@ -458,7 +536,9 @@ function HomeServerRow(props: {
             class="flex min-w-0 flex-1 items-center gap-1"
             classList={{ "opacity-60": !healthy() && !incompatible() }}
           >
-            <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{props.serverLabel(props.server)}</span>
+            <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+              {props.serverLabel(props.server)}
+            </span>
             <Show when={props.server.label}>
               {(label) => (
                 <span
@@ -569,6 +649,14 @@ function HomeProjectSlot(props: HomeProjectListProps & { worktree: string }) {
       }
       unread={props.hasUnread(props.server, project())}
     />
+  )
+}
+
+function HomeProjectNoMatch(props: { language: HomeProjectsViewProps["language"]; query: string }) {
+  return (
+    <div class="px-1.5 py-2 text-[13px] leading-[var(--line-height-compact)] tracking-[-0.04px] text-v2-text-text-muted [font-weight:440]">
+      {props.language.t("home.projects.search.noResults", { query: props.query })}
+    </div>
   )
 }
 
