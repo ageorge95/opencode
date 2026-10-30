@@ -6,6 +6,8 @@ import type {
   LocationGetInput,
   LocationGetOutput,
   LocationReloadOutput,
+  LocationReleaseInput,
+  LocationReleaseOutput,
   AgentListInput,
   AgentListOutput,
   AgentGetInput,
@@ -501,6 +503,18 @@ export function make(options: ClientOptions) {
             successStatus: 204,
             declaredStatuses: [400, 401, 503],
             empty: true,
+          },
+          requestOptions,
+        ),
+      release: (input?: LocationReleaseInput, requestOptions?: RequestOptions) =>
+        request<LocationReleaseOutput>(
+          {
+            method: "POST",
+            path: `/api/location/release`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [400, 401],
+            empty: false,
           },
           requestOptions,
         ),

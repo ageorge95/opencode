@@ -12,6 +12,8 @@ import type {
   LocationGetInput,
   LocationGetOutput,
   LocationReloadOutput,
+  LocationReleaseInput,
+  LocationReleaseOutput,
   AgentListInput,
   AgentListOutput,
   AgentGetInput,
@@ -358,9 +360,15 @@ const EndpointLocationGet = (raw: RawClient["server.location"]) => (input?: Loca
 const EndpointLocationReload = (raw: RawClient["server.location"]) => () =>
   preserveEffect<LocationReloadOutput>()(raw["location.reload"]({}).pipe(Effect.mapError(mapClientError)))
 
+const EndpointLocationRelease = (raw: RawClient["server.location"]) => (input?: LocationReleaseInput) =>
+  preserveEffect<LocationReleaseOutput>()(
+    raw["location.release"]({ query: { location: input?.["location"] } }).pipe(Effect.mapError(mapClientError)),
+  )
+
 const adaptGroupLocation = (raw: RawClient["server.location"]) => ({
   get: EndpointLocationGet(raw),
   reload: EndpointLocationReload(raw),
+  release: EndpointLocationRelease(raw),
 })
 
 const EndpointAgentList = (raw: RawClient["server.agent"]) => (input?: AgentListInput) =>

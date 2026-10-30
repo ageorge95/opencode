@@ -73,6 +73,8 @@ export interface MockServerConfig {
   // Runs on GET /api/location for a named directory before it answers, as the server registers the project of a
   // directory it resolves.
   onLocationGet?: (directory: string) => void
+  // Records `POST /api/location/release`, which the app sends once the last tab using a directory closes.
+  onLocationRelease?: (directory: string) => void
   sessions: MockSession[]
   pageMessages: (
     sessionId: string,
@@ -1032,6 +1034,12 @@ function mockHandlers(
             if (requested) config.onLocationGet?.(requested)
 
             return location(config, requested || config.directory)
+          }),
+        locationRelease: (ctx) =>
+          Effect.sync(() => {
+            config.onLocationRelease?.(requestDirectory(config, ctx.request))
+
+            return { released: true }
           }),
         permissionRequests: () =>
           Effect.suspend(() =>

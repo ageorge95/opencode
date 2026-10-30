@@ -3162,6 +3162,10 @@ export type LocationGetOutput = LocationPublicInfo
 
 export type LocationReloadOutput = void
 
+export type LocationReleaseInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
+
+export type LocationReleaseOutput = { released: boolean }
+
 export type AgentListInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
 
 export type AgentListOutput = { location: LocationPublicRef; data: Array<AgentInfo> }

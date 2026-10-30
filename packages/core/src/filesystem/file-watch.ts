@@ -41,6 +41,8 @@ export interface Interface {
   /** Starts watching a file, or resets its expiry when it is already watched. */
   readonly watch: (input: Input) => Effect.Effect<void, DisabledError>
   readonly unwatch: (input: Input) => Effect.Effect<void>
+  /** Stops every watch on a file inside the directory, whichever location requested it. */
+  readonly release: (directory: string) => Effect.Effect<void>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/FileWatch") {}
@@ -58,7 +60,11 @@ export const layer = (options?: Options) =>
     Service,
     Effect.gen(function* () {
       if (options?.enabled === false) {
-        return Service.of({ watch: () => Effect.fail(new DisabledError()), unwatch: () => Effect.void })
+        return Service.of({
+          watch: () => Effect.fail(new DisabledError()),
+          unwatch: () => Effect.void,
+          release: () => Effect.void,
+        })
       }
       const watcher = yield* Watcher.Service
       const bus = yield* Bus.Service
@@ -153,6 +159,17 @@ export const layer = (options?: Options) =>
             }),
           ),
         unwatch: (input) => lock.withPermit(stop(locationKey(input.location), input.file)),
+        release: (directory) =>
+          lock.withPermit(
+            Effect.suspend(() => {
+              const inside = [...locations].flatMap(([key, files]) =>
+                [...files.keys()]
+                  .filter((file) => FSUtil.contains(directory, file))
+                  .map((file) => [key, file] as const),
+              )
+              return Effect.forEach(inside, ([key, file]) => stop(key, file), { discard: true })
+            }),
+          ),
       })
     }),
   )

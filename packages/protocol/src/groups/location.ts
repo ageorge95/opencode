@@ -60,4 +60,24 @@ export const makeLocationGroup = <LocationId extends HttpApiMiddleware.AnyId, Lo
         }),
       ),
     )
+    .add(
+      HttpApiEndpoint.post("location.release", "/api/location/release", {
+        query: LocationQuery,
+        success: Schema.Struct({
+          released: Schema.Boolean.annotate({
+            description:
+              "False when a location of the directory was kept because one of its sessions is executing or has a running background job.",
+          }),
+        }),
+      })
+        .annotateMerge(locationQueryOpenApi)
+        .annotateMerge(
+          OpenApi.annotations({
+            identifier: "location.release",
+            summary: "Release a directory",
+            description:
+              "Shut down the services loaded for the requested directory, and stop the file watches inside it, so the server stops holding files and processes there. Sessions that are executing or have a running background job keep their location. Never loads the directory; its next use boots it again.",
+          }),
+        ),
+    )
     .annotateMerge(OpenApi.annotations({ title: "location" }))

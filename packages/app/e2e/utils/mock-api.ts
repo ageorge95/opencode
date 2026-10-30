@@ -207,6 +207,7 @@ const Group = HttpApiGroup.make("mock")
     }),
   )
   .add(HttpApiEndpoint.get("location", "/api/location", { success: Json }))
+  .add(HttpApiEndpoint.post("locationRelease", "/api/location/release", { success: Json }))
   .add(
     HttpApiEndpoint.get("permissionRequests", "/api/permission/request", {
       success: Json,

@@ -81,6 +81,28 @@ describe("FileWatch", () => {
     }),
   )
 
+  it.effect("release stops every watch inside a directory, whichever location asked", () =>
+    Effect.gen(function* () {
+      const fileWatch = yield* FileWatch.Service
+      const nested = { directory: AbsolutePath.make(path.join("/project", "nested")) }
+      yield* fileWatch.watch(file("a.ts"))
+      yield* fileWatch.watch({ location: nested, file: path.join(nested.directory, "b.ts") })
+      yield* fileWatch.watch({
+        location: { directory: AbsolutePath.make("/project-other") },
+        file: "/project-other/c.ts",
+      })
+      yield* fileWatch.release("/project")
+      // Watching again starts new watches for the released files only.
+      yield* fileWatch.watch(file("a.ts"))
+      yield* fileWatch.watch({ location: nested, file: path.join(nested.directory, "b.ts") })
+      yield* fileWatch.watch({
+        location: { directory: AbsolutePath.make("/project-other") },
+        file: "/project-other/c.ts",
+      })
+      expect(yield* subscriptions).toBe(5)
+    }),
+  )
+
   it.effect("publishes filesystem.changed on the watch's location", () =>
     Effect.gen(function* () {
       const fileWatch = yield* FileWatch.Service

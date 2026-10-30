@@ -269,6 +269,87 @@
         "summary": "Reload configuration"
       }
     },
+    "/api/location/release": {
+      "post": {
+        "tags": ["location"],
+        "operationId": "location.release",
+        "parameters": [
+          {
+            "name": "location",
+            "in": "query",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "directory": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "required": false,
+            "style": "deepObject",
+            "explode": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "released": {
+                      "type": "boolean",
+                      "description": "False when a location of the directory was kept because one of its sessions is executing or has a running background job."
+                    }
+                  },
+                  "required": ["released"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestErrorEncoded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedErrorEncoded"
+                }
+              }
+            }
+          }
+        },
+        "description": "Shut down the services loaded for the requested directory, and stop the file watches inside it, so the server stops holding files and processes there. Sessions that are executing or have a running background job keep their location. Never loads the directory; its next use boots it again.",
+        "summary": "Release a directory"
+      }
+    },
     "/api/agent": {
       "get": {
         "tags": ["agent"],

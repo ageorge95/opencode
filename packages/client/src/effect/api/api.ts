@@ -75,9 +75,16 @@ export type LocationGetOperation<E = never> = (input?: LocationGetInput) => Effe
 export type LocationReloadOutput = void
 export type LocationReloadOperation<E = never> = () => Effect.Effect<LocationReloadOutput, E>
 
+export type LocationReleaseInput = { readonly location?: { readonly directory?: string | undefined } | undefined }
+export type LocationReleaseOutput = { readonly released: boolean }
+export type LocationReleaseOperation<E = never> = (
+  input?: LocationReleaseInput,
+) => Effect.Effect<LocationReleaseOutput, E>
+
 export interface LocationApi<E = never> {
   readonly get: LocationGetOperation<E>
   readonly reload: LocationReloadOperation<E>
+  readonly release: LocationReleaseOperation<E>
 }
 
 export type AgentListInput = { readonly location?: { readonly directory?: string | undefined } | undefined }

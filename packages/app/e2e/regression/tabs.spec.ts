@@ -1147,6 +1147,32 @@ test("each session tab shows its own file tab after a switch to a session in ano
   }
 })
 
+test("closing the last tab in a folder asks the server to release that folder only", async ({ page }) => {
+  const shared = { id: "ses_release_shared", title: "Release shared" }
+  const sibling = { id: "ses_release_sibling", title: "Release sibling" }
+  const other = { id: "ses_release_other", title: "Release other", directory: "C:/OpenCode/ReleaseOther" }
+  const released: string[] = []
+  await openSession(page, {
+    name: "Release",
+    sessions: [shared, sibling, other],
+    onLocationRelease: (directory) => released.push(directory),
+  })
+  const close = (target: { id: string }) =>
+    page
+      .locator(`[data-titlebar-tab-slot]:has(a[href="${sessionHref(target.id)}"])`)
+      .getByRole("button", { name: "Close tab", exact: true })
+      .click()
+
+  // Another tab still uses the folder, so it stays loaded.
+  await close(shared)
+  await expectSessionTitle(page, sibling.title)
+  await close(other)
+  await expect.poll(() => released).toEqual(["C:/OpenCode/ReleaseOther"])
+
+  await close(sibling)
+  await expect.poll(() => released).toEqual(["C:/OpenCode/ReleaseOther", "C:/OpenCode/Release"])
+})
+
 test("tab shortcuts cycle side-panel tabs when the side panel is focused with multiple tabs", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   const directory = "C:/OpenCode/SidePanelTabs"

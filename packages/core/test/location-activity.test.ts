@@ -261,6 +261,59 @@ describe("LocationActivity eviction", () => {
       }),
     )
 
+  it.effect("release evicts a directory's idle placements now and keeps one whose session runs a background job", () =>
+    Effect.gen(function* () {
+      const db = (yield* Database.Service).db
+      const map = yield* LocationServiceMap.Service
+      const jobs = yield* Job.Service
+      const activity = yield* LocationActivity.Service
+      const sessionID = Session.ID.make("ses_release_job")
+      const busy = LocationServiceMap.canonical({ directory: AbsolutePath.make("/busy") })
+      const idle = Location.Ref.make({ directory: busy.directory, workspaceID: Workspace.ID.make("wrk_release") })
+      const other = LocationServiceMap.canonical({ directory: AbsolutePath.make("/other") })
+      yield* db
+        .insert(ProjectTable)
+        .values({ id: Project.ID.global, worktree: busy.directory, sandboxes: [] })
+        .run()
+        .pipe(Effect.orDie)
+      yield* db
+        .insert(SessionTable)
+        .values({
+          id: sessionID,
+          project_id: Project.ID.global,
+          slug: "release",
+          directory: busy.directory,
+          title: "Release",
+          version: "test",
+        })
+        .run()
+        .pipe(Effect.orDie)
+      yield* Effect.forEach([busy, idle, other], (ref) =>
+        Location.Service.pipe(Effect.provide(map.get(ref)), Effect.scoped),
+      )
+      const finish = yield* Deferred.make<string>()
+      const job = yield* jobs.start({
+        id: "job_release",
+        type: "shell",
+        recovery: { kind: "shell", sessionID, shellID: "shell_release", command: "sleep 9999" },
+        run: Deferred.await(finish),
+      })
+      yield* jobs.background(job.id)
+
+      // Non-canonical input, no idle wait: the workspace placement goes, the busy one and other directories stay.
+      expect(yield* activity.release(AbsolutePath.make("/busy/"))).toBe(false)
+      expect(Array.from(yield* RcMap.keys(map.rcMap)).toSorted()).toEqual([busy, other].toSorted())
+
+      yield* Deferred.succeed(finish, "done")
+      yield* jobs.wait({ id: job.id })
+      expect(yield* activity.release(busy.directory)).toBe(true)
+      expect(Array.from(yield* RcMap.keys(map.rcMap))).toEqual([other])
+      // Nothing loaded: nothing to keep, and nothing booted.
+      expect(yield* activity.release(busy.directory)).toBe(true)
+      expect(Array.from(yield* RcMap.keys(map.rcMap))).toEqual([other])
+    }),
+  )
+
   for (const [timeout, after, evicted] of [
     ["10 minutes", "11 minutes", true],
     [false, "3 hours", false],

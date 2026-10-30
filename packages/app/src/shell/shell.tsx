@@ -17,6 +17,7 @@ import { useLanguage } from "@/runtime/i18n/language"
 import { useGlobal } from "@/runtime/server/runtime"
 import { useServers } from "@/runtime/server/registry"
 import { useTabs } from "@/shell/tabs/tabs"
+import { useReleaseClosedFolders } from "@/shell/tabs/release"
 import {
   CollapsedSidebarToggle,
   collapsedSidebarToggleEnd,
@@ -46,6 +47,7 @@ export default function Layout(props: ParentProps) {
   const servers = useServers()
   const tabs = useTabs()
   const mobile = createMediaQuery("(max-width: 767px)")
+  useReleaseClosedFolders()
 
   const [state, setState] = createStore<{
     tabsWidth: number
