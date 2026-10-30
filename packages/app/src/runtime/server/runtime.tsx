@@ -1,7 +1,6 @@
 import { createSimpleContext } from "@opencode/ui/context"
 import { Accessor, batch, createEffect, createMemo, createResource, createRoot, getOwner, untrack } from "solid-js"
 import { createServerProjects, ServerConnection, useServers } from "./registry"
-import { pathKey } from "@/workspaces/path-key"
 import { useServerHealth } from "@/runtime/server/health"
 import { createServerSdkContext } from "./client"
 import { createServerSyncContext } from "./sync"
@@ -236,14 +235,11 @@ function createServerController(
     resolveSessionDetailsProject(session, projectsList(), sync.data.project)
 
   // Every closed project stays listed on Home, so the closed set is not capped for display.
-  const recentlyClosedList = createMemo(() => {
-    const known = new Set(sync.data.project.map((project) => pathKey(project.worktree)))
-
-    return projects
-      .recentlyClosed()
-      .filter((worktree) => known.has(pathKey(worktree)))
-      .map((worktree) => enrich({ worktree, expanded: false }))
-  })
+  // Closed rows are not matched against the server's project directories: clones of one repository share a
+  // project whose single canonical directory can move to another clone (or be archived), which would hide them.
+  const recentlyClosedList = createMemo(() =>
+    projects.recentlyClosed().map((worktree) => enrich({ worktree, expanded: false })),
+  )
 
   const isLocal =
     (conn?.type === "sidecar" && conn.variant === "base") || (conn?.type === "http" && isLocalHost(conn.http.url))
