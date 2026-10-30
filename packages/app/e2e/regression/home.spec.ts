@@ -250,6 +250,47 @@ test("Home and the directory picker load without newer browser APIs", async ({ p
   await expect(target).toBeVisible()
 })
 
+test("the home projects column resizes with a persisted, clamped width", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openHome(page)
+
+  const aside = page.getByRole("complementary", { name: "Projects", exact: true })
+  const handle = page.locator('[data-slot="home-projects-resize"] [data-component="resize-handle"]')
+  await expect(handle).toBeVisible()
+
+  const width = () => aside.evaluate((element) => Math.round(element.getBoundingClientRect().width))
+
+  const dragBy = async (delta: number) => {
+    const box = await handle.boundingBox()
+
+    if (!box) throw new Error("resize handle has no box")
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    await page.mouse.move(x, y)
+    await page.mouse.down()
+    await page.mouse.move(x + delta, y, { steps: 8 })
+    await page.mouse.up()
+  }
+
+  await expect.poll(width).toBe(320)
+
+  await dragBy(80)
+  await expect.poll(width).toBe(400)
+
+  await page.reload()
+  await expect(handle).toBeVisible()
+  await expect.poll(width).toBe(400)
+
+  await dragBy(600)
+  await expect.poll(width).toBe(600)
+
+  await dragBy(-600)
+  await expect.poll(width).toBe(220)
+
+  await handle.dblclick()
+  await expect.poll(width).toBe(320)
+})
+
 test("adding a project to a signed-out server re-pairs it, then continues at the paired address", async ({ page }) => {
   // The saved address rejects the new token, so saving moves the server to the link's address.
   const paired = "http://127.0.0.1:4098"

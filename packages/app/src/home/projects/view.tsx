@@ -1,4 +1,4 @@
-import { createMemo, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
+import { type Accessor, createMemo, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Popover } from "@kobalte/core/popover"
 import {
@@ -9,12 +9,19 @@ import {
   ProjectAvatar,
 } from "@opencode/ui/project-avatar"
 import { Icon } from "@opencode/ui/icon"
+import { ResizeHandle } from "@opencode/ui/resize-handle"
 import { IconButton } from "@opencode/ui/icon-button"
 import { Button } from "@opencode/ui/button"
 import { Loader } from "@opencode/ui/loader"
 import { Menu } from "@opencode/ui/menu"
 import { Tooltip } from "@opencode/ui/tooltip"
-import type { HomeProjectSelection, LocalProject } from "@/shell/state/layout"
+import {
+  DEFAULT_HOME_PROJECTS_WIDTH,
+  type HomeProjectSelection,
+  type LocalProject,
+  MAX_HOME_PROJECTS_WIDTH,
+  MIN_HOME_PROJECTS_WIDTH,
+} from "@/shell/state/layout"
 import { ServerConnection } from "@/runtime/server/registry"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
@@ -43,6 +50,10 @@ export type HomeProjectsViewProps = {
   servers: ServerConnection.Any[]
   projects: LocalProject[]
   selection: HomeProjectSelection
+  projectsWidth?: Accessor<number>
+  maxProjectsWidth?: Accessor<number>
+  onResizeProjects?: (width: number) => void
+  onResetProjectsWidth?: () => void
   serverHealth: (server: ServerConnection.Any) => ServerHealth | undefined
   serverLabel: (server: ServerConnection.Any) => string
   projectsForServer: (server: ServerConnection.Any) => LocalProject[]
@@ -162,7 +173,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
         props.dropdown
           ? "flex max-h-[min(60dvh,calc(var(--kb-popper-content-available-height)-12px))] min-h-0 min-w-0 flex-col overflow-hidden"
           : `
-        mt-2.5 flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden
+        relative mt-2.5 flex min-h-0 min-w-0 flex-col gap-4 overflow-hidden lg:overflow-visible
         lg:sticky lg:top-14 lg:mt-14 lg:h-[calc(100cqh-56px)] lg:self-start lg:pt-[52px]
       `
       }
@@ -173,7 +184,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
       }}
     >
       <Show when={!props.dropdown}>
-        <div class="flex h-7 min-w-0 shrink-0 items-center justify-between pl-1.5 pr-3">
+        <div class="flex h-7 min-w-0 shrink-0 items-center justify-between ps-1.5 pe-3">
           {/* Below lg, Projects heads the page on the collapsed sidebar toggle's line. Starting the space at the row's
               edge (the shell's 8px inset plus the grid's 12px padding) keeps the row's 6px padding after the toggle,
               which lines the label up with the icons that follow it in the session and settings headers. */}
@@ -222,7 +233,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
             fallback={
               <Show when={props.servers[0]}>
                 {(server) => (
-                  <div class={props.dropdown ? "" : "pr-3"}>
+                  <div class={props.dropdown ? "" : "pe-3"}>
                     <Show when={props.projects.length > 0} fallback={<HomeProjectEmpty {...props} server={server()} />}>
                       <HomeProjectList {...props} {...contextMenuProps} server={server()} items={props.projects} />
                       <Show when={props.dropdown}>
@@ -243,7 +254,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
               </Show>
             }
           >
-            <div class={`flex min-w-0 flex-col ${props.dropdown ? "gap-1" : "gap-4 pr-3"}`}>
+            <div class={`flex min-w-0 flex-col ${props.dropdown ? "gap-1" : "gap-4 pe-3"}`}>
               <For each={props.servers}>
                 {(item) => {
                   const projects = () => props.projectsForServer(item)
@@ -300,6 +311,21 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
         onOpenHelp={props.onOpenHelp}
         language={props.language}
       />
+      <Show when={!props.dropdown && props.onResizeProjects}>
+        {(onResize) => (
+          <div data-slot="home-projects-resize" class="hidden lg:block">
+            <div data-slot="home-projects-resize-line" />
+            <ResizeHandle
+              direction="horizontal"
+              size={props.projectsWidth?.() ?? DEFAULT_HOME_PROJECTS_WIDTH}
+              min={MIN_HOME_PROJECTS_WIDTH}
+              max={props.maxProjectsWidth?.() ?? MAX_HOME_PROJECTS_WIDTH}
+              onResize={onResize()}
+              onDblClick={() => props.onResetProjectsWidth?.()}
+            />
+          </div>
+        )}
+      </Show>
     </aside>
   )
 }
@@ -312,7 +338,7 @@ export function HomeUtilityNav(props: {
 }) {
   return (
     <div
-      class={`${props.class ?? ""} min-w-0 flex-row justify-between gap-1 lg:flex-col lg:justify-start lg:pr-3 [&>button]:w-auto lg:[&>button]:w-full`}
+      class={`${props.class ?? ""} min-w-0 flex-row justify-between gap-1 lg:flex-col lg:justify-start lg:pe-3 [&>button]:w-auto lg:[&>button]:w-full`}
     >
       <HomeProjectNavButton
         type="button"
@@ -392,7 +418,7 @@ function HomeServerRow(props: {
           <span
             data-action="home-server-collapse"
             class={`
-            -ml-0.5 -mr-1.5 inline-flex size-5 shrink-0 items-center justify-center
+            -ms-0.5 -me-1.5 inline-flex size-5 shrink-0 items-center justify-center
             rounded-[4px] text-v2-icon-icon-muted
           `}
             classList={{
@@ -420,7 +446,7 @@ function HomeServerRow(props: {
               style={{ transform: `rotate(${props.collapsed || !canToggle() ? -90 : 0}deg)` }}
             />
           </span>
-          <div class="flex size-4 shrink-0 items-center justify-center -mr-0.5">
+          <div class="flex size-4 shrink-0 items-center justify-center -me-0.5">
             <ServerHealthIndicator
               health={props.health}
               connecting={props.server.type === "plugin" && props.server.connecting}
@@ -450,7 +476,7 @@ function HomeServerRow(props: {
         <div
           data-slot="home-row-actions"
           class={`
-          hover-reveal absolute bottom-0 right-1 top-0 flex items-center gap-1 rounded-r-[6px] pl-2
+          hover-reveal absolute bottom-0 end-1 top-0 flex items-center gap-1 rounded-e-[6px] ps-2
           group-hover/server:opacity-100 focus-within:opacity-100 data-[menu=true]:opacity-100
         `}
           data-menu={props.contextMenuOpen(contextMenuID())}
@@ -603,14 +629,14 @@ function HomeProjectRow(
         onClick={() => props.onSelectProject(props.server, props.project.worktree)}
       >
         <HomeProjectAvatar project={props.project} />
-        <span data-slot="home-row-label" class={HOME_PROJECT_NAV_LABEL}>
+        <span data-slot="home-row-label" class={HOME_PROJECT_NAV_LABEL} title={displayName(props.project)}>
           {displayName(props.project)}
         </span>
       </HomeProjectNavButton>
       <div
         data-slot="home-row-actions"
         class={`
-          hover-reveal absolute bottom-0 right-1 top-0 flex items-center gap-1 rounded-r-[6px] pl-2
+          hover-reveal absolute bottom-0 end-1 top-0 flex items-center gap-1 rounded-e-[6px] ps-2
           group-hover/project:opacity-100 focus-within:opacity-100 data-[menu=true]:opacity-100
         `}
         data-menu={props.contextMenuOpen(contextMenuID())}
@@ -684,7 +710,7 @@ function HomeProjectNavButton(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>
     <button
       {...rest}
       class={`
-        flex h-7 min-w-0 w-full shrink-0 cursor-default items-center gap-2 rounded-[6px] bg-transparent px-1.5 text-left
+        flex h-7 min-w-0 w-full shrink-0 cursor-default items-center gap-2 rounded-[6px] bg-transparent px-1.5 text-start
         text-v2-text-text-muted [font-weight:440] transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out
         hover:bg-v2-background-bg-layer-01 hover:text-v2-text-text-base
         data-[selected]:bg-v2-background-bg-layer-03 data-[selected]:text-v2-text-text-base

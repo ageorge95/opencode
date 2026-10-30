@@ -34,6 +34,12 @@ const DEFAULT_SESSION_WIDTH = 600
 
 const DEFAULT_DOCK_HEIGHT = 280
 
+export const DEFAULT_HOME_PROJECTS_WIDTH = 320
+
+export const MIN_HOME_PROJECTS_WIDTH = 220
+
+export const MAX_HOME_PROJECTS_WIDTH = 600
+
 const PANE_TARGET_TTL_MS = 10_000
 
 export type LocalProject = Partial<Project> & { worktree: string }
@@ -163,6 +169,7 @@ export const layoutSchema = Persistence.struct({
       server: Schema.optional(TabStorage.ServerKey),
       directory: Schema.optional(Schema.String),
     }),
+    projectsWidth: Schema.Finite,
   }),
 })
 
@@ -230,7 +237,7 @@ export function initialLayout(server?: ServerConnection.Key): typeof layoutSchem
     mobileSidebar: { opened: false },
     sessionTabs: {},
     sessionView: {},
-    home: { selection: server ? { server } : {} },
+    home: { selection: server ? { server } : {}, projectsWidth: DEFAULT_HOME_PROJECTS_WIDTH },
   }
 }
 
@@ -443,6 +450,13 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         selection: createMemo(() => store.home.selection),
         setSelection(selection: HomeProjectSelection) {
           setStore("home", "selection", reconcile(selection))
+        },
+        projectsWidth: createMemo(() => store.home?.projectsWidth ?? DEFAULT_HOME_PROJECTS_WIDTH),
+        resizeProjects(width: number) {
+          setStore("home", "projectsWidth", width)
+        },
+        resetProjectsWidth() {
+          setStore("home", "projectsWidth", DEFAULT_HOME_PROJECTS_WIDTH)
         },
         searchFocus: {
           request() {
