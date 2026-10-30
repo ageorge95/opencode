@@ -11,6 +11,7 @@ import {
   useContext,
 } from "solid-js"
 import { motionTuning } from "../../motion-tuning"
+import opencodeIcon from "../../assets/favicon/favicon.svg"
 import { attachGeneratedAvatar } from "./animation"
 import { generateProjectIcon, GENERATED_PROJECT_ICON_STYLE, type GeneratedProjectIcon } from "./generated"
 import "./project-avatar.css"
@@ -80,7 +81,8 @@ export function getProjectAvatarSource(id?: string, icon?: { color?: string; url
 
   if (icon?.color) return undefined
 
-  if (id && OPENCODE_PROJECT_IDS.has(id)) return "https://opencode.ai/favicon.svg"
+  // Bundled rather than loaded from opencode.ai, so the logo also shows offline or where that host is blocked.
+  if (id && OPENCODE_PROJECT_IDS.has(id)) return opencodeIcon
 
   return icon?.url
 }
