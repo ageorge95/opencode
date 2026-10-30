@@ -25,14 +25,24 @@ export function createHomeController() {
   const projects = createMemo(() => focusedServerCtx()?.projects.used() ?? [])
   // Closed projects stay listed and selectable, so their sessions remain reachable.
   const closedProjects = createMemo(() => focusedServerCtx()?.projects.closed() ?? [])
+  // So do projects whose folders are gone, which the server archived.
+  const missingProjects = createMemo(() => focusedServerCtx()?.projects.missing() ?? [])
+
+  const selectedMissing = createMemo(() =>
+    missingProjects().find((project) => project.worktree === selection().directory),
+  )
 
   const selectedProject = createMemo(
     () =>
       projects().find((project) => project.worktree === selection().directory) ??
-      closedProjects().find((project) => project.worktree === selection().directory),
+      closedProjects().find((project) => project.worktree === selection().directory) ??
+      selectedMissing(),
   )
 
-  const newSessionProject = createMemo(() => selectedProject() ?? focusedServerCtx()?.projects.last() ?? projects()[0])
+  // A project whose folder is gone cannot start a session.
+  const newSessionProject = createMemo(() =>
+    selectedMissing() ? undefined : (selectedProject() ?? focusedServerCtx()?.projects.last() ?? projects()[0]),
+  )
 
   createEffect(() => {
     const list = servers.visible
@@ -63,10 +73,10 @@ export function createHomeController() {
     if (!conn) return
     const ctx = global.ensureServerCtx(conn)
 
-    if (!ctx.sync.project.ready()) return
+    if (!ctx.sync.project.ready() || !ctx.sync.project.archived.ready()) return
 
     if (
-      [...ctx.projects.used(), ...ctx.projects.closed()].some(
+      [...ctx.projects.used(), ...ctx.projects.closed(), ...ctx.projects.missing()].some(
         (project) => pathKey(project.worktree) === pathKey(directory),
       )
     )
@@ -118,13 +128,18 @@ export function createHomeController() {
       newSession: newSessionProject,
       forServer: (conn: ServerConnection.Any) => global.ensureServerCtx(conn).projects.used(),
       closedForServer: (conn: ServerConnection.Any) => global.ensureServerCtx(conn).projects.closed(),
+      missingForServer: (conn: ServerConnection.Any) => global.ensureServerCtx(conn).projects.missing(),
       select: (conn: ServerConnection.Any, directory: string) => {
         const key = ServerConnection.key(conn)
 
         if (global.servers.health[key]?.healthy === false) return
         const ctx = global.ensureServerCtx(conn)
 
-        if (![...ctx.projects.used(), ...ctx.projects.closed()].some((project) => project.worktree === directory))
+        if (
+          ![...ctx.projects.used(), ...ctx.projects.closed(), ...ctx.projects.missing()].some(
+            (project) => project.worktree === directory,
+          )
+        )
           return
         setSelection(toggleHomeProjectSelection(selection(), key, directory))
       },

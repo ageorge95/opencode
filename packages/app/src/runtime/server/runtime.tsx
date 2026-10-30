@@ -289,6 +289,22 @@ function createServerController(
     return unique().filter((project) => paths.has(pathKey(project.worktree)) && !open.has(pathKey(project.worktree)))
   })
 
+  // The projects whose folders are gone, which the server archived: one per path, and none for a path that a live
+  // project holds again.
+  const missing = createMemo(() => {
+    const live = new Set(list().map((project) => pathKey(project.worktree)))
+    const seen = new Set<string>()
+
+    return sync.project.archived.list().filter((project) => {
+      const key = pathKey(project.worktree)
+
+      if (live.has(key) || seen.has(key)) return false
+      seen.add(key)
+
+      return true
+    })
+  })
+
   const forDirectory = (directory: string): Project | undefined => {
     const key = pathKey(directory)
 
@@ -361,6 +377,7 @@ function createServerController(
         const key = pathKey(project.worktree)
         projects.hide(list().flatMap((item) => (pathKey(item.worktree) === key ? [item.id] : [])))
       },
+      missing,
     },
     notification,
   }

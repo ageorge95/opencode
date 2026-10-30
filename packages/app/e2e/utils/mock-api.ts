@@ -163,7 +163,12 @@ const Group = HttpApiGroup.make("mock")
     }),
   )
   .add(HttpApiEndpoint.get("mcpResource", "/api/mcp/resource", { success: Json }))
-  .add(HttpApiEndpoint.get("projectList", "/api/project", { success: Json }))
+  .add(
+    HttpApiEndpoint.get("projectList", "/api/project", {
+      query: Schema.Struct({ archived: Schema.optional(Schema.String) }),
+      success: Json,
+    }),
+  )
   .add(
     HttpApiEndpoint.patch("projectUpdate", "/api/project/:projectID", {
       params: { projectID: Schema.String },

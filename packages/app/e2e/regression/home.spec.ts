@@ -332,6 +332,41 @@ test("a closed project stays listed with its sessions and reopens from the menu"
   await expect(project).toHaveAttribute("data-selected", "")
 })
 
+test("a missing project waits in a collapsed section, labelled, with its sessions reachable", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const gone = "C:/OpenCode/Gone"
+  await mockWorkspace(page, {
+    name: "Home",
+    sessions: [
+      { id: "ses_home_kept", title: "Still here" },
+      { id: "ses_gone", title: "Lost work", directory: gone, projectID: "proj_gone" },
+    ],
+    archivedProjects: [
+      project({ id: "proj_gone", directory: gone, time: { created: T0, updated: T0, active: T0, archived: T0 } }),
+    ],
+  })
+  await page.goto("/")
+
+  const toggle = page.locator('[data-action="home-missing-toggle"]')
+  const missing = page.locator('[data-component="home-project-row"]').filter({ hasText: "Gone" })
+  await expect(toggle).toHaveText(/^Missing\s*1$/)
+  await expect(toggle).toHaveAttribute("aria-expanded", "false")
+  await expect(missing).toHaveCount(0)
+
+  await toggle.click()
+  await expect(toggle).toHaveAttribute("aria-expanded", "true")
+  await expect(missing.locator("..")).toHaveAttribute("data-missing", "")
+  await expect(missing.getByText("Missing", { exact: true })).toBeVisible()
+
+  // Its sessions stay reachable, but a new session needs a folder.
+  await missing.click()
+  await expect(missing).toHaveAttribute("data-selected", "")
+  await expect(row(page, "Lost work")).toBeVisible()
+  await expect(row(page, "Still here")).toBeHidden()
+  await expect(page.locator('[data-action="home-new-session"]')).toBeHidden()
+  await expect(missing.locator("..").getByRole("button", { name: "More options", exact: true })).toHaveCount(0)
+})
+
 test("the home projects column resizes with a persisted, clamped width", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openHome(page)

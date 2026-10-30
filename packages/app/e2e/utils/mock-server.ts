@@ -70,6 +70,8 @@ export interface MockServerConfig {
   // Replaces the `/api/project` inventory, which defaults to `[project]`. A location inside a listed project
   // resolves to that project; any other location resolves to `project`.
   projects?: Resolvable<unknown[]>
+  // Projects whose folders are gone, which `/api/project?archived=true` adds to the inventory.
+  archivedProjects?: unknown[]
   // Runs on GET /api/location for a named directory before it answers, as the server registers the project of a
   // directory it resolves.
   onLocationGet?: (directory: string) => void
@@ -987,12 +989,17 @@ function mockHandlers(
             location: location(config, requestDirectory(config, ctx.request)),
             data: { resources: [], templates: [] },
           }),
-        projectList: () =>
+        projectList: (ctx) =>
           Effect.sync(() => {
-            if (config.projects) return resolve(config.projects)
+            const archived = ctx.query.archived === "true" ? (config.archivedProjects ?? []) : []
+
+            if (config.projects) return [...resolve(config.projects), ...archived]
             const seed = projectSeed(config)
 
-            return [{ ...projectFields(config), canonical: seed?.canonical ?? seed?.worktree ?? config.directory }]
+            return [
+              { ...projectFields(config), canonical: seed?.canonical ?? seed?.worktree ?? config.directory },
+              ...archived,
+            ]
           }),
         projectUpdate: (ctx) =>
           Effect.succeed({

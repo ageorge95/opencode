@@ -58,6 +58,7 @@ export type HomeProjectsViewProps = {
   serverLabel: (server: ServerConnection.Any) => string
   projectsForServer: (server: ServerConnection.Any) => LocalProject[]
   closedProjectsForServer: (server: ServerConnection.Any) => LocalProject[]
+  missingProjectsForServer: (server: ServerConnection.Any) => LocalProject[]
   collapsed: (server: ServerConnection.Any) => boolean
   canRevealProject: (server: ServerConnection.Any) => boolean
   hasUnread: (server: ServerConnection.Any, project: LocalProject) => boolean
@@ -93,11 +94,12 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
 
   const selected = createMemo(() => {
     const conn = server()
+    const match = (project: LocalProject) => project.worktree === props.selection.directory
 
     return (
-      props.projects.find((project) => project.worktree === props.selection.directory) ??
+      props.projects.find(match) ??
       (conn
-        ? props.closedProjectsForServer(conn).find((project) => project.worktree === props.selection.directory)
+        ? (props.closedProjectsForServer(conn).find(match) ?? props.missingProjectsForServer(conn).find(match))
         : undefined)
     )
   })
@@ -168,7 +170,10 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
 }
 
 function HomeProjectsPanel(props: HomeProjectsViewProps) {
-  const [state, setState] = createStore<{ open: string | undefined; search: string }>({ open: undefined, search: "" })
+  // `missing` holds the servers whose Missing section is expanded; each starts collapsed.
+  const [state, setState] = createStore<{ open: string | undefined; search: string; missing: Record<string, boolean> }>(
+    { open: undefined, search: "", missing: {} },
+  )
 
   const query = () => state.search.trim()
   const searching = () => query().length > 0
@@ -181,6 +186,13 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
 
   const visible = (items: LocalProject[]) => (searching() ? items.filter(matches) : items)
 
+  // A search shows the matching missing projects.
+  const missingProps = (server: ServerConnection.Any) => ({
+    items: visible(props.missingProjectsForServer(server)),
+    expanded: searching() || !!state.missing[ServerConnection.key(server)],
+    onToggle: () => setState("missing", ServerConnection.key(server), (expanded) => !expanded),
+  })
+
   // A search spans every added project, so servers without a match step aside and
   // collapsed servers expand for their matching projects.
   const visibleServers = () =>
@@ -188,7 +200,8 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
       ? props.servers.filter(
           (server) =>
             visible(props.projectsForServer(server)).length > 0 ||
-            visible(props.closedProjectsForServer(server)).length > 0,
+            visible(props.closedProjectsForServer(server)).length > 0 ||
+            visible(props.missingProjectsForServer(server)).length > 0,
         )
       : props.servers
 
@@ -311,7 +324,8 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
                       <Show
                         when={
                           visible(props.projects).length > 0 ||
-                          visible(props.closedProjectsForServer(server())).length > 0
+                          visible(props.closedProjectsForServer(server())).length > 0 ||
+                          visible(props.missingProjectsForServer(server())).length > 0
                         }
                         fallback={<HomeProjectNoMatch language={props.language} query={query()} />}
                       >
@@ -348,6 +362,13 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
                         </HomeProjectNavButton>
                       </Show>
                     </Show>
+                    <HomeMissingProjects
+                      {...props}
+                      {...contextMenuProps}
+                      {...missingProps(server())}
+                      class="mt-1"
+                      server={server()}
+                    />
                   </div>
                 )}
               </Show>
@@ -362,8 +383,9 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
                   {(item) => {
                     const projects = () => visible(props.projectsForServer(item))
                     const closed = () => visible(props.closedProjectsForServer(item))
+                    const missing = () => visible(props.missingProjectsForServer(item))
                     const healthy = () => !!props.serverHealth(item)?.healthy
-                    const hasProjects = () => projects().length > 0 || closed().length > 0
+                    const hasProjects = () => projects().length > 0 || closed().length > 0 || missing().length > 0
                     const collapsed = () => props.collapsed(item)
                     const authentication = () => signInRequired(item, props.serverHealth(item))
                     const connecting = () => item.type === "plugin" && item.connecting
@@ -415,6 +437,7 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
                           <Show when={closed().length > 0}>
                             <HomeProjectList {...props} {...contextMenuProps} server={item} items={closed()} closed />
                           </Show>
+                          <HomeMissingProjects {...props} {...contextMenuProps} {...missingProps(item)} server={item} />
                         </Show>
                       </div>
                     )
@@ -485,6 +508,7 @@ function HomeServerRow(props: {
   serverLabel: HomeProjectsViewProps["serverLabel"]
   projectsForServer: HomeProjectsViewProps["projectsForServer"]
   closedProjectsForServer: HomeProjectsViewProps["closedProjectsForServer"]
+  missingProjectsForServer: HomeProjectsViewProps["missingProjectsForServer"]
   contextMenuOpen: HomeProjectsContextMenuProps["contextMenuOpen"]
   onFocusServer: HomeProjectsViewProps["onFocusServer"]
   onToggleCollapsed: HomeProjectsViewProps["onToggleCollapsed"]
@@ -503,9 +527,13 @@ function HomeServerRow(props: {
   const healthy = () => !!props.health?.healthy
   const authentication = () => signInRequired(props.server, props.health)
   const incompatible = () => !!props.health?.incompatible
+
   const canToggle = () =>
     healthy() &&
-    (props.projectsForServer(props.server).length > 0 || props.closedProjectsForServer(props.server).length > 0)
+    (props.projectsForServer(props.server).length > 0 ||
+      props.closedProjectsForServer(props.server).length > 0 ||
+      props.missingProjectsForServer(props.server).length > 0)
+
   const contextMenuID = () => serverContextMenuID(props.server)
   onCleanup(() => {
     const id = contextMenuID()
@@ -645,7 +673,39 @@ type HomeProjectListProps = HomeProjectsViewProps &
     items: LocalProject[]
     // Closed rows render dimmed with a Closed label; they stay selectable and reopen from their menu.
     closed?: boolean
+    // Missing rows, whose folders are gone, render dimmed with a Missing label and stay selectable for their sessions.
+    missing?: boolean
   }
+
+// The projects whose folders are gone, which the server archived, behind a toggle that starts collapsed.
+function HomeMissingProjects(
+  props: HomeProjectListProps & { expanded: boolean; onToggle: () => void; class?: string },
+) {
+  return (
+    <Show when={props.items.length > 0}>
+      <div data-component="home-missing-projects" class={`flex min-w-0 flex-col gap-1 ${props.class ?? ""}`}>
+        <HomeProjectNavButton
+          type="button"
+          data-action="home-missing-toggle"
+          aria-expanded={props.expanded}
+          onClick={() => props.onToggle()}
+        >
+          <Icon
+            name="chevron-down"
+            size="small"
+            class="shrink-0 text-v2-icon-icon-muted transition-transform duration-150 ease-in-out"
+            style={{ transform: `rotate(${props.expanded ? 0 : -90}deg)` }}
+          />
+          <span class={HOME_PROJECT_NAV_LABEL}>{props.language.t("home.projects.missing")}</span>
+          <span class="shrink-0 tabular-nums text-v2-text-text-faint">{props.items.length}</span>
+        </HomeProjectNavButton>
+        <Show when={props.expanded}>
+          <HomeProjectList {...props} missing />
+        </Show>
+      </div>
+    </Show>
+  )
+}
 
 function HomeProjectList(props: HomeProjectListProps) {
   const [hover, setHover] = createStore({ active: false })
@@ -732,6 +792,7 @@ function HomeProjectRow(
       selected: boolean
       unread: boolean
       closed?: boolean
+      missing?: boolean
     },
 ) {
   const platform = usePlatform()
@@ -747,10 +808,11 @@ function HomeProjectRow(
   return (
     <div
       class="group/project relative flex h-7 min-w-0 items-center rounded-[6px]"
-      classList={{ "opacity-60": props.closed }}
+      classList={{ "opacity-60": props.closed || props.missing }}
       data-home-row
       data-dimmed={serverUnreachable()}
       data-closed={props.closed ? "" : undefined}
+      data-missing={props.missing ? "" : undefined}
       data-selected={props.selected ? "" : undefined}
       onContextMenu={(event) => {
         event.preventDefault()
@@ -773,90 +835,93 @@ function HomeProjectRow(
           title={displayName(props.project)}
         >
           <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{displayName(props.project)}</span>
-          <Show when={props.closed}>
+          <Show when={props.closed || props.missing}>
             <span
               class={`
                 shrink-0 rounded-[3px] border border-v2-border-border-base px-1 py-0.5
                 text-[9px] leading-none text-v2-text-text-muted
               `}
             >
-              {props.language.t("home.project.closed")}
+              {props.language.t(props.missing ? "home.project.missing" : "home.project.closed")}
             </span>
           </Show>
         </span>
       </HomeProjectNavButton>
-      <div
-        data-slot="home-row-actions"
-        class={`
+      {/* A missing project's folder is gone, so none of its row actions apply. */}
+      <Show when={!props.missing}>
+        <div
+          data-slot="home-row-actions"
+          class={`
           hover-reveal absolute bottom-0 end-1 top-0 flex items-center gap-1 rounded-e-[6px] ps-2
           group-hover/project:opacity-100 focus-within:opacity-100 data-[menu=true]:opacity-100
         `}
-        data-menu={props.contextMenuOpen(contextMenuID())}
-      >
-        <Menu
-          gutter={6}
-          modal={false}
-          placement="bottom-end"
-          open={props.contextMenuOpen(contextMenuID())}
-          onOpenChange={(open) => props.onSetContextMenuOpen(contextMenuID(), open)}
+          data-menu={props.contextMenuOpen(contextMenuID())}
         >
-          <Menu.Trigger
-            as={IconButton}
-            data-action="home-project-menu"
+          <Menu
+            gutter={6}
+            modal={false}
+            placement="bottom-end"
+            open={props.contextMenuOpen(contextMenuID())}
+            onOpenChange={(open) => props.onSetContextMenuOpen(contextMenuID(), open)}
+          >
+            <Menu.Trigger
+              as={IconButton}
+              data-action="home-project-menu"
+              variant="ghost-muted"
+              size="small"
+              icon={<Icon name="outline-dots" />}
+              aria-label={props.language.t("common.moreOptions")}
+            />
+            <Menu.Portal>
+              <Menu.Content>
+                <Menu.Item onSelect={() => props.onOpenProjectNewSession(props.server, props.project.worktree)}>
+                  {props.language.t("command.session.new")}
+                </Menu.Item>
+                <Show when={props.canImportSession}>
+                  <Menu.Item onSelect={() => props.onImportSession(props.server, props.project)}>
+                    {props.language.t("command.session.import")}
+                  </Menu.Item>
+                </Show>
+                <Menu.Item onSelect={() => props.onEditProject(props.server, props.project)}>
+                  {props.language.t("dialog.project.edit.title")}
+                </Menu.Item>
+                <Show when={props.canRevealProject(props.server)}>
+                  <Menu.Item onSelect={() => props.onRevealProject(props.server, props.project)}>
+                    {props.language.t(
+                      fileManagerApp(platform.platform === "desktop" ? (platform.os ?? "unknown") : "unknown")
+                        .actionLabel,
+                    )}
+                  </Menu.Item>
+                </Show>
+                <Menu.Item
+                  disabled={!props.unread}
+                  onSelect={() => props.onClearNotifications(props.server, props.project)}
+                >
+                  {props.language.t("sidebar.project.clearNotifications")}
+                </Menu.Item>
+                <Menu.Separator />
+                <Menu.Item
+                  onSelect={() =>
+                    props.closed
+                      ? props.onReopenProject(props.server, props.project)
+                      : props.onHideProject(props.server, props.project)
+                  }
+                >
+                  {props.language.t(props.closed ? "command.project.open" : "common.close")}
+                </Menu.Item>
+              </Menu.Content>
+            </Menu.Portal>
+          </Menu>
+          <IconButton
+            data-action="home-project-new-session"
             variant="ghost-muted"
             size="small"
-            icon={<Icon name="outline-dots" />}
-            aria-label={props.language.t("common.moreOptions")}
+            icon={<Icon name="edit" />}
+            aria-label={props.language.t("command.session.new")}
+            onClick={() => props.onOpenProjectNewSession(props.server, props.project.worktree)}
           />
-          <Menu.Portal>
-            <Menu.Content>
-              <Menu.Item onSelect={() => props.onOpenProjectNewSession(props.server, props.project.worktree)}>
-                {props.language.t("command.session.new")}
-              </Menu.Item>
-              <Show when={props.canImportSession}>
-                <Menu.Item onSelect={() => props.onImportSession(props.server, props.project)}>
-                  {props.language.t("command.session.import")}
-                </Menu.Item>
-              </Show>
-              <Menu.Item onSelect={() => props.onEditProject(props.server, props.project)}>
-                {props.language.t("dialog.project.edit.title")}
-              </Menu.Item>
-              <Show when={props.canRevealProject(props.server)}>
-                <Menu.Item onSelect={() => props.onRevealProject(props.server, props.project)}>
-                  {props.language.t(
-                    fileManagerApp(platform.platform === "desktop" ? (platform.os ?? "unknown") : "unknown")
-                      .actionLabel,
-                  )}
-                </Menu.Item>
-              </Show>
-              <Menu.Item
-                disabled={!props.unread}
-                onSelect={() => props.onClearNotifications(props.server, props.project)}
-              >
-                {props.language.t("sidebar.project.clearNotifications")}
-              </Menu.Item>
-              <Menu.Separator />
-              <Menu.Item
-                onSelect={() =>
-                  props.closed
-                    ? props.onReopenProject(props.server, props.project)
-                    : props.onHideProject(props.server, props.project)
-                }
-              >
-                {props.language.t(props.closed ? "command.project.open" : "common.close")}
-              </Menu.Item>
-            </Menu.Content>
-          </Menu.Portal>
-        </Menu>
-        <IconButton
-          data-action="home-project-new-session"
-          variant="ghost-muted"
-          size="small"
-          icon={<Icon name="edit" />}
-          aria-label={props.language.t("command.session.new")}
-          onClick={() => props.onOpenProjectNewSession(props.server, props.project.worktree)}
-        />
-      </div>
+        </div>
+      </Show>
     </div>
   )
 }
