@@ -24,6 +24,7 @@ export function HomeProjects(props: {
       serverLabel={props.projects.server.label}
       projectsForServer={props.projects.server.projects}
       closedProjectsForServer={props.projects.server.closedProjects}
+      missingProjectsForServer={props.projects.server.missingProjects}
       collapsed={props.projects.server.collapsed}
       canRevealProject={props.projects.project.canReveal}
       hasUnread={props.projects.project.hasUnread}

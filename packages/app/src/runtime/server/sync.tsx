@@ -235,8 +235,20 @@ function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
     return promise
   }
 
+  // The server archives a project once its folders are gone, and lists archived projects only on request.
+  const archivedProjectsKey = [serverSDK.scope, "project", "archived"] as const
+
+  const archivedProjects = useQuery(() => ({
+    queryKey: archivedProjectsKey,
+    queryFn: () =>
+      serverSDK.api.project
+        .list({ archived: true })
+        .then((items) => items.flatMap((project) => (project.time.archived ? [normalizeProjectInfo(project)] : []))),
+    enabled: connected(),
+  }))
+
   // Mirrors the server's list: unarchived projects, most recently active first. Unknown projects join the list and
-  // archived ones leave it.
+  // archived ones leave it. The archived list mirrors the other side.
   function applyProjectUpdate(update: Parameters<typeof updateProjectInfo>[1]) {
     setGlobalStore("project", (projects) => {
       const rest = projects.filter((project) => project.id !== update.id)
@@ -251,8 +263,18 @@ function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
         worktrees.cached(update.id),
       )
 
-      return [...rest, next].toSorted(
-        (a, b) => b.time.active - a.time.active || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+      return [...rest, next].toSorted(byActivity)
+    })
+    queryClient.setQueryData<Project[]>(archivedProjectsKey, (projects) => {
+      if (!projects) return projects
+      const rest = projects.filter((project) => project.id !== update.id)
+
+      if (!update.time.archived) return rest
+
+      const previous = projects.find((project) => project.id === update.id)
+
+      return [...rest, previous ? updateProjectInfo(previous, update) : normalizeProjectInfo(update)].toSorted(
+        byActivity,
       )
     })
   }
@@ -307,6 +329,12 @@ function createServerSyncContextInner(serverSDK: ServerSDK, data: Data) {
     update: applyProjectUpdate,
     ready: () => projectsQuery.isSuccess,
     refresh: refreshProjects,
+    archived: {
+      // Read only once settled: reading a pending query's data would suspend.
+      list: () => (archivedProjects.isPending ? [] : (archivedProjects.data ?? [])),
+      // The list has answered once, with projects or an error.
+      ready: () => !archivedProjects.isPending,
+    },
     meta(directory: string, patch: ProjectMeta) {
       children.projectMeta(directory, patch)
     },
@@ -393,3 +421,8 @@ export function createServerSyncContext(serverSDK: ServerSDK, data: Data) {
 }
 
 export type ServerSync = ReturnType<typeof createServerSyncContext>
+
+// The server's project order: most recently active first.
+function byActivity(a: Project, b: Project) {
+  return b.time.active - a.time.active || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+}
