@@ -62,6 +62,9 @@ export function Composer(props: {
         alternateKeybind={[formatKeybind("mod", language.t), "↵"]}
         exitShellKeybind={[formatKeybind("esc", language.t)]}
         suggestionBoundary={props.suggestionBoundary}
+        expanded={props.model.expand?.expanded()}
+        onToggleExpanded={props.model.expand?.toggle}
+        expandKeybind={command.keybindParts("prompt.expand")}
         modelControl={
           <ComposerModelControl
             loading={props.model.model.loading}

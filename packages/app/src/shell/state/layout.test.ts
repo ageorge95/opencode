@@ -26,6 +26,7 @@ describe("layout persistence", () => {
     expect(restore({ fileTree: {} }).fileTree.width).toBe(300)
     expect(restore({ review: {}, fileTree: { opened: false } }).review.panelOpened).toBe(false)
     expect(restore({ home: { projectsWidth: 512 } }).home.projectsWidth).toBe(512)
+    expect(restore({ composer: { expanded: true } }).composer.expanded).toBe(true)
     expect(() => Schema.decodeUnknownSync(layoutSchema)({})).toThrow()
   })
 
@@ -38,6 +39,7 @@ describe("layout persistence", () => {
       fileTree: { opened: false, width: 200, tab: "changes" },
       session: { width: 600 },
       mobileSidebar: { opened: false },
+      composer: { expanded: false },
       sessionTabs: {},
       sessionView: {},
       home: { selection: { server: ServerConnection.Key.make("local") }, projectsWidth: 320 },
@@ -49,6 +51,7 @@ describe("layout persistence", () => {
         session: { width: undefined },
         review: { panelOpened: "bad" },
         home: { projectsWidth: "bad" },
+        composer: { expanded: "bad" },
       }),
     ).toEqual(defaults)
   })

@@ -162,6 +162,8 @@ export const layoutSchema = Persistence.struct({
   }),
   session: Persistence.struct({ width: Schema.Finite }),
   mobileSidebar: Persistence.struct({ opened: Schema.Boolean }),
+  // An expanded composer gives long prompts a tall writing area instead of the compact, capped editor.
+  composer: Persistence.struct({ expanded: Schema.Boolean }),
   sessionTabs: Persistence.record(Persistence.fallback(sessionTabsSchema, () => ({ all: [] }))),
   sessionView: Persistence.record(Persistence.fallback(sessionViewSchema, () => ({ scroll: {} }))),
   home: Persistence.struct({
@@ -235,6 +237,7 @@ export function initialLayout(server?: ServerConnection.Key): typeof layoutSchem
     fileTree: { opened: false, width: DEFAULT_FILE_TREE_WIDTH, tab: "changes" },
     session: { width: DEFAULT_SESSION_WIDTH },
     mobileSidebar: { opened: false },
+    composer: { expanded: false },
     sessionTabs: {},
     sessionView: {},
     home: { selection: server ? { server } : {}, projectsWidth: DEFAULT_HOME_PROJECTS_WIDTH },
@@ -513,6 +516,12 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         },
         toggle() {
           setStore("mobileSidebar", "opened", (x) => !x)
+        },
+      },
+      composer: {
+        expanded: createMemo(() => store.composer?.expanded ?? false),
+        toggleExpanded() {
+          setStore("composer", "expanded", (x) => !x)
         },
       },
       pendingMessage: {
