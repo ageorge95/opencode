@@ -82,6 +82,11 @@ export type ComposerEditorProps = {
   alternateKeybind?: string[]
   exitShellKeybind?: string[]
   suggestionBoundary?: () => HTMLElement | undefined
+  /** A tall, fixed writing area for long prompts in place of the compact editor that grows to 180px. */
+  expanded?: boolean
+  /** Shows the expand toggle in the composer actions. */
+  onToggleExpanded?: () => void
+  expandKeybind?: string[]
 }
 
 export function ComposerEditor(props: ComposerEditorProps) {
@@ -278,7 +283,10 @@ export function ComposerEditor(props: ComposerEditorProps) {
             data-component="composer-scroll"
             data-scrollable
             class="relative overflow-y-auto"
-            classList={{ "max-h-[180px]": historyLayout.height === undefined }}
+            classList={{
+              "max-h-[180px]": historyLayout.height === undefined && !props.expanded,
+              "h-[max(40vh,180px)]": historyLayout.height === undefined && props.expanded,
+            }}
             onScroll={updateScroll}
             ref={viewport}
           >
@@ -300,7 +308,12 @@ export function ComposerEditor(props: ComposerEditorProps) {
               // @ts-expect-error
               autocomplete="off"
               class="relative z-10 block w-full whitespace-pre-wrap bg-transparent ps-4 pe-[var(--composer-scroll-end)] pt-4 pb-2 text-[13px] font-[440] leading-5 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
-              classList={{ "font-mono! tracking-[-0.04px]": state.mode === "shell", "opacity-50": props.disabled }}
+              classList={{
+                "font-mono! tracking-[-0.04px]": state.mode === "shell",
+                "opacity-50": props.disabled,
+                // The whole expanded area takes clicks and the caret, not just the written lines.
+                "min-h-full": props.expanded && historyLayout.height === undefined,
+              }}
               style={{
                 "unicode-bidi": state.mode === "normal" ? "plaintext" : undefined,
                 "text-align": "start",
@@ -448,6 +461,19 @@ export function ComposerEditor(props: ComposerEditorProps) {
             </div>
           </div>
           <div data-slot="composer-actions" class="flex shrink-0 items-center">
+            <Show when={props.onToggleExpanded}>
+              {(toggle) => (
+                <ComposerEditorExpandButton
+                  expanded={props.expanded ?? false}
+                  label={i18n.t(props.expanded ? "ui.promptInput.collapse" : "ui.promptInput.expand")}
+                  keybind={props.expandKeybind ?? []}
+                  onToggle={() => {
+                    toggle()()
+                    props.controller.restoreFocus()
+                  }}
+                />
+              )}
+            </Show>
             <Show when={state.mode === "normal"}>
               <ComposerEditorAlternateDelivery
                 controller={props.controller}
@@ -1401,6 +1427,42 @@ function ComposerEditorAlternateDelivery(props: { controller: ComposerEditorMode
         </Tooltip>
       )}
     </Show>
+  )
+}
+
+function ComposerEditorExpandButton(props: {
+  expanded: boolean
+  label: string
+  keybind: string[]
+  onToggle: () => void
+}) {
+  return (
+    <Tooltip
+      placement="top"
+      value={
+        <>
+          {props.label}
+          <Keybind keys={props.keybind} variant="neutral" />
+        </>
+      }
+    >
+      <IconButton
+        data-action="composer-expand"
+        type="button"
+        icon={<Icon name={props.expanded ? "collapse" : "expand"} />}
+        variant="ghost-muted"
+        size="large"
+        class="me-1"
+        // Tab keeps going from the composer controls straight to Send; the keyboard toggles with the shortcut.
+        tabIndex={-1}
+        aria-label={props.label}
+        aria-pressed={props.expanded}
+        onClick={(event) => {
+          event.preventDefault()
+          props.onToggle()
+        }}
+      />
+    </Tooltip>
   )
 }
 

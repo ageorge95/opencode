@@ -9,6 +9,7 @@ import { createComposerEditor, createComposerEditorState, type ComposerEditorMod
 import { selectionFromLines, type SelectedLineRange, useFile } from "@/workspaces/files/model"
 import { useComments } from "@/composer/comments"
 import { useCommand } from "@/shell/commands/command"
+import { useLayout } from "@/shell/state/layout"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePluginHost } from "@/runtime/plugin/host"
 import { usePluginAttachment } from "@/runtime/plugin/host-apis"
@@ -36,6 +37,8 @@ import { parseClientSlashCommand } from "./client-slash-command"
 
 export type ComposerModel = ComposerEditorModel & {
   readonly model: ComposerControls["model"]
+  /** The saved expanded-composer preference, shared by every composer. */
+  readonly expand?: { expanded: () => boolean; toggle: () => void }
 }
 
 const sendFailedTitle = {
@@ -58,6 +61,7 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
   const comments = useComments()
   const dialog = useDialog()
   const command = useCommand()
+  const layout = useLayout()
   const language = useLanguage()
   const platform = usePlatform()
   const serverSDK = useServerSDK()
@@ -559,6 +563,9 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
   })
 
   Object.defineProperty(controller, "model", { get: () => adapter.controls().model })
+  Object.defineProperty(controller, "expand", {
+    value: { expanded: layout.composer.expanded, toggle: layout.composer.toggleExpanded },
+  })
 
   command.register("composer-editor", () => [
     {
@@ -585,6 +592,14 @@ export function createComposerModel(adapter: ComposerAdapter, options?: { queue?
       keybind: "mod+shift+e",
       disabled: controller.state.mode === "normal",
       onSelect: () => void controller.dispatch({ type: "mode.normal" }),
+    },
+    {
+      id: "prompt.expand",
+      title: language.t("command.prompt.expand"),
+      category: language.t("command.category.session"),
+      keybind: "mod+shift+enter",
+      editable: true,
+      onSelect: () => layout.composer.toggleExpanded(),
     },
   ])
 

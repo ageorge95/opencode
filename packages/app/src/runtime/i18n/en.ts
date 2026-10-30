@@ -102,6 +102,7 @@ export const dict = {
   "command.model.variant.cycle.description": "Switch to the next model variant",
   "command.prompt.mode.shell": "Shell",
   "command.prompt.mode.normal": "Prompt",
+  "command.prompt.expand": "Toggle expanded prompt",
   "command.permissions.autoaccept.enable": "Auto-accept permissions",
   "command.permissions.autoaccept.disable": "Stop auto-accepting permissions",
   "command.permissions.autoaccept.project": "Auto-accept permissions for this project",

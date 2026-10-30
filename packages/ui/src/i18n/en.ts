@@ -179,6 +179,8 @@ const source = {
   "ui.promptInput.placeholder.normal": "Ask anything, {{slash}} for commands, {{at}} for context…",
   "ui.promptInput.placeholder.followUp": "Add follow-up, {{slash}} for commands, {{at}} for context…",
   "ui.promptInput.add": "Add images and files",
+  "ui.promptInput.expand": "Expand prompt",
+  "ui.promptInput.collapse": "Collapse prompt",
   "ui.promptInput.attachments": "Images and files",
   "ui.promptInput.context": "Context",
   "ui.promptInput.shell": "Shell command",
