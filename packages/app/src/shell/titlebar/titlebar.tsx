@@ -405,6 +405,8 @@ export function Titlebar(props: { verticalTabs?: { mount?: HTMLElement } }) {
                     projects?.list()[0]
 
                   if (conn && project) {
+                    // A new session in a closed project reopens it, as one started from its Home row does.
+                    projects?.touch(project.worktree)
                     void tabs.newDraft({ server: ServerConnection.key(conn), directory: project.worktree }, "")
 
                     return true

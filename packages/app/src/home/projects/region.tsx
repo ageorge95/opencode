@@ -23,6 +23,7 @@ export function HomeProjects(props: {
       serverHealth={props.projects.server.health}
       serverLabel={props.projects.server.label}
       projectsForServer={props.projects.server.projects}
+      closedProjectsForServer={props.projects.server.closedProjects}
       collapsed={props.projects.server.collapsed}
       canRevealProject={props.projects.project.canReveal}
       hasUnread={props.projects.project.hasUnread}
@@ -44,6 +45,7 @@ export function HomeProjects(props: {
       onRevealProject={props.projects.project.reveal}
       onClearNotifications={props.projects.project.clearNotifications}
       onHideProject={props.projects.project.hide}
+      onReopenProject={props.projects.project.reopen}
       onOpenSettings={props.projects.utility.settings}
       onOpenHelp={props.projects.utility.help}
     />

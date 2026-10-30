@@ -51,12 +51,19 @@ export function createServerProjects(input: {
   setStore: SetStoreFunction<StoredState>
 }) {
   const used = () => input.store.usedProjectIDs[input.scope()] ?? []
+  const closed = () => input.store.closedProjectIDs[input.scope()] ?? []
 
+  // Using a project also reopens it.
   const use = (projectIDs: string[]) => {
     const current = used()
     const next = [...new Set([...current, ...projectIDs])]
+    const reopened = closed().filter((id) => !projectIDs.includes(id))
 
-    if (next.length !== current.length) input.setStore("usedProjectIDs", input.scope(), next)
+    batch(() => {
+      if (next.length !== current.length) input.setStore("usedProjectIDs", input.scope(), next)
+
+      if (reopened.length !== closed().length) input.setStore("closedProjectIDs", input.scope(), reopened)
+    })
   }
 
   return {
@@ -70,13 +77,18 @@ export function createServerProjects(input: {
       })
     },
     used,
+    closed,
     use,
+    // Closed projects leave the used list but stay recorded, so Home keeps listing them until they are used again.
     hide(projectIDs: string[]) {
-      input.setStore(
-        "usedProjectIDs",
-        input.scope(),
-        used().filter((id) => !projectIDs.includes(id)),
-      )
+      batch(() => {
+        input.setStore(
+          "usedProjectIDs",
+          input.scope(),
+          used().filter((id) => !projectIDs.includes(id)),
+        )
+        input.setStore("closedProjectIDs", input.scope(), [...new Set([...closed(), ...projectIDs])])
+      })
     },
     /** Directories an older build listed for this server, until `migrate` consumes them. */
     legacy() {
@@ -207,7 +219,15 @@ export const { use: useServers, provider: ServersProvider } = createSimpleContex
         previousKey: "server.v3",
       },
       ServerState,
-      { list: [], hidden: {}, lastProjectID: {}, usedProjectIDs: {}, hostnames: {}, projects: {} },
+      {
+        list: [],
+        hidden: {},
+        lastProjectID: {},
+        usedProjectIDs: {},
+        closedProjectIDs: {},
+        hostnames: {},
+        projects: {},
+      },
     )
 
     const language = useLanguage()

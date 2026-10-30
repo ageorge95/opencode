@@ -12,6 +12,7 @@ function serverSchema() {
     hidden: {},
     lastProjectID: {},
     usedProjectIDs: {},
+    closedProjectIDs: {},
     hostnames: {},
     projects: {},
   })
@@ -119,4 +120,12 @@ test("used and last projects follow dynamic server scopes, and migration consume
   expect(store.projects).toEqual({ other: [{ worktree: "/b" }] })
   expect(store.lastProjectID).toEqual({ local: "a", [props.server]: "remote-project" })
   expect(store.usedProjectIDs).toEqual({ local: ["a"], [props.server]: ["remote-project"] })
+  expect(projects.closed()).toEqual(["b"])
+  projects.hide(["a"])
+  expect(projects.used()).toEqual([])
+  expect(projects.closed()).toEqual(["b", "a"])
+  // Using a closed project reopens it.
+  projects.touch("a")
+  expect(projects.used()).toEqual(["a"])
+  expect(store.closedProjectIDs).toEqual({ local: ["b"] })
 })

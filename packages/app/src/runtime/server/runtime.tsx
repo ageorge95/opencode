@@ -278,6 +278,17 @@ function createServerController(
     return unique().filter((project) => paths.has(pathKey(project.worktree)))
   })
 
+  // The projects this client closed, in server order, that are not in use again under another ID of their path.
+  // Closed projects are kept by ID, not directory: clones of one repository share a project whose canonical
+  // directory can move to another clone, and a directory match would then hide the closed project.
+  const closed = createMemo(() => {
+    const ids = new Set(projects.closed())
+    const open = new Set(used().map((project) => pathKey(project.worktree)))
+    const paths = new Set(list().flatMap((project) => (ids.has(project.id) ? [pathKey(project.worktree)] : [])))
+
+    return unique().filter((project) => paths.has(pathKey(project.worktree)) && !open.has(pathKey(project.worktree)))
+  })
+
   const forDirectory = (directory: string): Project | undefined => {
     const key = pathKey(directory)
 
@@ -333,6 +344,7 @@ function createServerController(
       list,
       unique,
       used,
+      closed,
       add,
       forDirectory,
       forSession: (session: SessionInfo): Project | undefined => projectForSession(session, list()),
@@ -343,7 +355,8 @@ function createServerController(
 
         if (id) projects.touch(id)
       },
-      // Removes a project from this client's used projects until it is used again; the server keeps it.
+      // Closes a project: it leaves this client's used projects, and Home lists it as closed until it is used again.
+      // The server keeps it.
       hide(project: Pick<Project, "worktree">) {
         const key = pathKey(project.worktree)
         projects.hide(list().flatMap((item) => (pathKey(item.worktree) === key ? [item.id] : [])))

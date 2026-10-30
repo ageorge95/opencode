@@ -177,7 +177,9 @@ test("Home lists the used server projects by recent activity, hides them, and li
   const recent = page.locator('[data-component="home-project-row"]').filter({ hasText: "recent" })
   await recent.locator("..").getByRole("button", { name: "More options", exact: true }).click()
   await page.getByRole("menuitem", { name: "Close", exact: true }).click()
-  await expect(view.rows).toHaveText(["oldest"])
+  // A closed project stays listed below the open ones, dimmed and labelled, until it is used again.
+  await expect(view.rows).toHaveText(["oldest", "recentClosed"])
+  await expect(recent.locator("..")).toHaveAttribute("data-closed", "")
 
   // Closing a project moves it out of the added list, but it remains discoverable in the server inventory.
   await page
@@ -301,6 +303,33 @@ test("the home projects search spans servers and reveals collapsed projects", as
   await page.getByRole("button", { name: "Clear", exact: true }).click()
   await expect(rows).toHaveCount(3)
   await expect(gemRow).toHaveCount(0)
+})
+
+test("a closed project stays listed with its sessions and reopens from the menu", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openHome(page)
+
+  const project = page.locator('[data-component="home-project-row"]').filter({ hasText: fixture.project.name })
+  const container = project.locator("..")
+  await expect(project).toBeVisible()
+
+  await container.getByRole("button", { name: "More options", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Close", exact: true }).click()
+
+  await expect(container).toHaveAttribute("data-closed", "")
+  await expect(project.getByText("Closed", { exact: true })).toBeVisible()
+  await expect(container).toHaveCSS("opacity", "0.6")
+
+  // A closed project stays selectable, so its sessions remain reachable.
+  await project.click()
+  await expect(project).toHaveAttribute("data-selected", "")
+  await expect(row(page, fixture.expected.targetTitle)).toBeVisible()
+
+  await container.getByRole("button", { name: "More options", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Open project", exact: true }).click()
+  await expect(container).not.toHaveAttribute("data-closed", "")
+  await expect(project.getByText("Closed", { exact: true })).toHaveCount(0)
+  await expect(project).toHaveAttribute("data-selected", "")
 })
 
 test("the home projects column resizes with a persisted, clamped width", async ({ page }) => {

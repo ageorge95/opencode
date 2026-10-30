@@ -23,7 +23,14 @@ export function createHomeController() {
   const focusedSync = () => focusedServerCtx()?.sync
   // Home lists the server's projects this client has used.
   const projects = createMemo(() => focusedServerCtx()?.projects.used() ?? [])
-  const selectedProject = createMemo(() => projects().find((project) => project.worktree === selection().directory))
+  // Closed projects stay listed and selectable, so their sessions remain reachable.
+  const closedProjects = createMemo(() => focusedServerCtx()?.projects.closed() ?? [])
+
+  const selectedProject = createMemo(
+    () =>
+      projects().find((project) => project.worktree === selection().directory) ??
+      closedProjects().find((project) => project.worktree === selection().directory),
+  )
 
   const newSessionProject = createMemo(() => selectedProject() ?? focusedServerCtx()?.projects.last() ?? projects()[0])
 
@@ -58,7 +65,12 @@ export function createHomeController() {
 
     if (!ctx.sync.project.ready()) return
 
-    if (ctx.projects.used().some((project) => pathKey(project.worktree) === pathKey(directory))) return
+    if (
+      [...ctx.projects.used(), ...ctx.projects.closed()].some(
+        (project) => pathKey(project.worktree) === pathKey(directory),
+      )
+    )
+      return
     setSelection({ server: current.server })
   })
 
@@ -105,19 +117,20 @@ export function createHomeController() {
       selected: selectedProject,
       newSession: newSessionProject,
       forServer: (conn: ServerConnection.Any) => global.ensureServerCtx(conn).projects.used(),
+      closedForServer: (conn: ServerConnection.Any) => global.ensureServerCtx(conn).projects.closed(),
       select: (conn: ServerConnection.Any, directory: string) => {
         const key = ServerConnection.key(conn)
 
         if (global.servers.health[key]?.healthy === false) return
+        const ctx = global.ensureServerCtx(conn)
 
-        if (
-          !global
-            .ensureServerCtx(conn)
-            .projects.used()
-            .some((project) => project.worktree === directory)
-        )
+        if (![...ctx.projects.used(), ...ctx.projects.closed()].some((project) => project.worktree === directory))
           return
         setSelection(toggleHomeProjectSelection(selection(), key, directory))
+      },
+      reopen: (conn: ServerConnection.Any, directory: string) => {
+        global.ensureServerCtx(conn).projects.touch(directory)
+        setSelection({ server: ServerConnection.key(conn), directory })
       },
       add: async (conn: ServerConnection.Any, directories: string[]) => {
         const project = await addProjects(global.ensureServerCtx(conn), directories)
