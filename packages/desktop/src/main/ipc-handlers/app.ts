@@ -15,6 +15,7 @@ import { finishFirstLaunchOnboarding, isFirstLaunchOnboardingPending } from "../
 import { BackgroundService } from "../service/background-service"
 import { DesktopCli } from "../service/desktop-cli"
 import { SidecarCredentials } from "../service/sidecar-credentials"
+import { getStopServiceOnQuit, setStopServiceOnQuit } from "../service/stop-on-quit"
 import { getLastFocusedWindow, setBackgroundColor } from "../windows"
 import { sender } from "./context"
 
@@ -67,6 +68,8 @@ export const appHandlers = AppRpcs.toLayer(
             relaunch: lifecycle.relaunch,
           })
         }),
+      AppGetStopServiceOnQuit: () => Effect.sync(getStopServiceOnQuit),
+      AppSetStopServiceOnQuit: ({ enabled }) => Effect.sync(() => setStopServiceOnQuit(enabled)),
       AppRelaunch: () => Effect.sync(lifecycle.relaunch),
     })
   }),

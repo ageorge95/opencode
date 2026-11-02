@@ -57,6 +57,14 @@ export const clientSettings: Entry<SettingsRootTab>[] = [
   },
   {
     tab: "general",
+    label: "settings.general.row.stopServiceOnQuit.title",
+    target: "settings-stop-service-on-quit",
+    description: "settings.general.row.stopServiceOnQuit.description",
+    keywords: "quit exit close stop cli server service background",
+    available: "desktop",
+  },
+  {
+    tab: "general",
     label: "settings.general.row.mobileTitlebarBottom.title",
     target: "settings-mobile-titlebar-bottom",
     available: "mobile",

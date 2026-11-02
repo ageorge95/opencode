@@ -43,6 +43,8 @@ export function createDesktopPlatform(api: ElectronAPI, windowState: DesktopWind
     setTrafficLightsPosition: (position) => api.setTrafficLightsPosition(position),
     getPinchZoomEnabled: () => api.getPinchZoomEnabled(),
     setPinchZoomEnabled,
+    getStopServiceOnQuit: () => api.getStopServiceOnQuit(),
+    setStopServiceOnQuit: (enabled) => api.setStopServiceOnQuit(enabled),
     onDragCancel: (callback) => {
       window.addEventListener(DragCancelEvent, callback)
 

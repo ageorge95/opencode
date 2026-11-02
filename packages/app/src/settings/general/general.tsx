@@ -249,6 +249,20 @@ export const SettingsGeneral: Component = () => {
     void update.catch(() => setPinchZoom(!checked))
   }
 
+  const [stopServiceOnQuit, { mutate: setStopServiceOnQuit }] = createResource(
+    () => desktop() && "getStopServiceOnQuit" in platform,
+    () => Promise.resolve(platform.getStopServiceOnQuit?.() ?? false).catch(() => false),
+    { initialValue: false },
+  )
+
+  const onStopServiceOnQuitChange = (checked: boolean) => {
+    setStopServiceOnQuit(checked)
+    const update = platform.setStopServiceOnQuit?.(checked)
+
+    if (!update) return
+    void update.catch(() => setStopServiceOnQuit(!checked))
+  }
+
   const GeneralSection = () => (
     <div class="settings-section">
       <h3 class="settings-section-title">{language.t("settings.general.section.general")}</h3>
@@ -280,6 +294,17 @@ export const SettingsGeneral: Component = () => {
           >
             <div data-action="settings-pinch-zoom">
               <Switch checked={pinchZoom.latest} onChange={onPinchZoomChange} />
+            </div>
+          </SettingsRow>
+        </Show>
+
+        <Show when={desktop() && "getStopServiceOnQuit" in platform}>
+          <SettingsRow
+            title={language.t("settings.general.row.stopServiceOnQuit.title")}
+            description={language.t("settings.general.row.stopServiceOnQuit.description")}
+          >
+            <div data-action="settings-stop-service-on-quit">
+              <Switch checked={stopServiceOnQuit.latest} onChange={onStopServiceOnQuitChange} />
             </div>
           </SettingsRow>
         </Show>

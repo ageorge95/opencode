@@ -96,4 +96,6 @@ export const api: ElectronAPI = {
   setForceFocus: (enabled) => invoke("AppSetForceFocus", { enabled }),
   recordFatalRendererError: (error) => invoke("AppRecordFatalRendererError", { error }),
   setNativeTranslations: (bundle) => invoke("AppSetNativeTranslations", { value: bundle }),
+  getStopServiceOnQuit: () => invoke("AppGetStopServiceOnQuit"),
+  setStopServiceOnQuit: (enabled) => invoke("AppSetStopServiceOnQuit", { enabled }),
 }

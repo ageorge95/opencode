@@ -108,6 +108,12 @@ type PlatformBase = {
   /** Allow native pinch/Ctrl-scroll zoom gestures (desktop only) */
   setPinchZoomEnabled?(enabled: boolean): Promise<void> | void
 
+  /** Get whether quitting the app also stops the background CLI service (desktop only) */
+  getStopServiceOnQuit?(): Promise<boolean>
+
+  /** Stop the background CLI service when the app quits (desktop only) */
+  setStopServiceOnQuit?(enabled: boolean): Promise<void>
+
   /** Run a desktop-only menu action from the app chrome */
   runDesktopMenuAction?(action: DesktopMenuAction): Promise<void> | void
 

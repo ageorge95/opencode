@@ -1,16 +1,21 @@
 import { app } from "electron"
 import { Context, Effect, FileSystem, Layer, Option, Path, Schema } from "effect"
 import { CHANNEL } from "../constants"
+import { Shutdown } from "../lifecycle/shutdown"
 import { BackgroundServiceState } from "./background-service-state"
 import { cleanStages } from "./cli-stages"
 import { keptStages, serviceVersion, shouldRetryEnsure } from "./cli-version"
 import { DesktopCli } from "./desktop-cli"
 import { SidecarCredentials } from "./sidecar-credentials"
 import { sidecarProbe } from "./sidecar-probe"
+import { getStopServiceOnQuit } from "./stop-on-quit"
 
 export * as BackgroundService from "./background-service"
 
 const RegisteredService = Schema.Struct({ version: Schema.optional(Schema.String) })
+
+// The registration file of the service this app last connected to; undefined until a connect succeeds.
+let connected: { readonly file: string | undefined } | undefined
 
 export interface Interface {
   readonly connection: Effect.Effect<SidecarCredentials.Data>
@@ -23,6 +28,23 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const context = yield* Effect.context<FileSystem.FileSystem | Path.Path | DesktopCli.Service>()
+    const shutdown = yield* Shutdown.Service
+
+    // Opt-in from Settings: stop the service this app connected to when the app quits. Without a
+    // connection there is nothing of ours to stop, so a service started elsewhere is left alone.
+    const remove = yield* shutdown.add(
+      Effect.suspend(() => {
+        if (!connected || !getStopServiceOnQuit()) return Effect.void
+        const options = connected
+
+        return Effect.promise(() => import("@opencode/client/service")).pipe(
+          Effect.flatMap((client) => Effect.tryPromise(() => client.Service.stop(options))),
+          Effect.tap(() => Effect.logInfo("v2 CLI background service stopped on quit")),
+          Effect.catch((error) => Effect.logError("failed to stop v2 CLI background service on quit", { error })),
+        )
+      }),
+    )
+    yield* Effect.addFinalizer(() => Effect.sync(remove))
 
     return Service.of(
       yield* BackgroundServiceState.make({
@@ -116,6 +138,7 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
 
   const ready = { url: url.origin, password: service.auth.password } satisfies SidecarCredentials.Data
   SidecarCredentials.set(ready)
+  connected = { file }
 
   return ready
 })

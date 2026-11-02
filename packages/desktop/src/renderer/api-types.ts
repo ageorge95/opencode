@@ -73,4 +73,6 @@ export type ElectronAPI = {
   setForceFocus(enabled: boolean): Promise<void>
   recordFatalRendererError(error: FatalRendererError): Promise<void>
   setNativeTranslations(bundle: DesktopNativeBundle): Promise<void>
+  getStopServiceOnQuit(): Promise<boolean>
+  setStopServiceOnQuit(enabled: boolean): Promise<void>
 }
