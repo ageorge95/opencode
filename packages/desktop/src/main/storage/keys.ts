@@ -4,6 +4,8 @@ export const FIRST_LAUNCH_ONBOARDING_COMPLETE_KEY = "firstLaunchOnboardingComple
 
 export const PINCH_ZOOM_ENABLED_KEY = "pinchZoomEnabled"
 
+export const STOP_SERVICE_ON_QUIT_KEY = "stopServiceOnQuit"
+
 export const ZOOM_LEVEL_KEY = "zoomLevel"
 
 export const SPELLCHECK_ENABLED_KEY = "spellcheckEnabled"

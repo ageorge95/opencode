@@ -1030,6 +1030,9 @@ export const dict = {
   "settings.general.row.pinchZoom.description": "Allow trackpad pinch and Ctrl-scroll gestures to zoom",
   "settings.general.row.spellcheck.title": "Spellcheck",
   "settings.general.row.spellcheck.description": "Underline misspelled words while typing",
+  "settings.general.row.stopServiceOnQuit.title": "Stop CLI service on quit",
+  "settings.general.row.stopServiceOnQuit.description":
+    "Stop the background OpenCode CLI service when the app quits. Leave off if you also use the CLI directly",
 
   "sound.option.none": "None",
   "sound.option.alert01": "Alert 01",

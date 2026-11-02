@@ -64,6 +64,12 @@ export const AppSetNativeTranslations = Rpc.make("AppSetNativeTranslations", {
   payload: { value: Schema.Unknown },
 })
 
+export const AppGetStopServiceOnQuit = Rpc.make("AppGetStopServiceOnQuit", { success: Schema.Boolean })
+
+export const AppSetStopServiceOnQuit = Rpc.make("AppSetStopServiceOnQuit", {
+  payload: { enabled: Schema.Boolean },
+})
+
 export const AppRelaunch = Rpc.make("AppRelaunch")
 
 export const AppRpcs = RpcGroup.make(
@@ -81,5 +87,7 @@ export const AppRpcs = RpcGroup.make(
   AppSetSpellcheckEnabled,
   AppRecordFatalRendererError,
   AppSetNativeTranslations,
+  AppGetStopServiceOnQuit,
+  AppSetStopServiceOnQuit,
   AppRelaunch,
 )

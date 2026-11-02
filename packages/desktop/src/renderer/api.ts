@@ -98,4 +98,6 @@ export const api: ElectronAPI = {
   setSpellcheckEnabled: (enabled) => invoke("AppSetSpellcheckEnabled", { enabled }),
   recordFatalRendererError: (error) => invoke("AppRecordFatalRendererError", { error }),
   setNativeTranslations: (bundle) => invoke("AppSetNativeTranslations", { value: bundle }),
+  getStopServiceOnQuit: () => invoke("AppGetStopServiceOnQuit"),
+  setStopServiceOnQuit: (enabled) => invoke("AppSetStopServiceOnQuit", { enabled }),
 }
