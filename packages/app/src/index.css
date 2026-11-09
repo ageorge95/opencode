@@ -375,6 +375,17 @@
     );
   }
 
+  .home-content-grid {
+    --home-projects-width: 320px;
+  }
+
+  @media (min-width: 1024px) {
+    .home-content-grid {
+      max-width: calc(var(--home-projects-width, 320px) + 800px);
+      grid-template-columns: var(--home-projects-width, 320px) minmax(0, 720px);
+    }
+  }
+
   [data-slot="manage-models-scroll"] {
     timeline-scope: --manage-models-scroll;
   }
