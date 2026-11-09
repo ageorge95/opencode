@@ -46,7 +46,7 @@ test("Home projects, utility rows, search and recent sessions show keyboard focu
 
   await expect(projectButton).toBeVisible()
   await expect(viewport).toHaveAttribute("tabindex", "-1")
-  await projects.getByRole("button", { name: "Add project", exact: true }).press("Tab")
+  await projects.getByRole("textbox", { name: "Search projects", exact: true }).press("Tab")
   await expect(projectButton).toBeFocused()
   await expect
     .poll(() =>
@@ -625,6 +625,59 @@ test("Home and the directory picker load without newer browser APIs", async ({ p
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click()
   await expect(dialog).toBeHidden()
   await expect(target).toBeVisible()
+})
+
+test("the home projects search filters the project list", async ({ page }) => {
+  const extra = ["Alpha", "Beta"].map((name, index) =>
+    project({ id: `proj_search_${index}`, directory: `/projects/${name}`, name }),
+  )
+
+  await mockStressTimeline(page, { projects: [fixture.project, ...extra] })
+  await seed(page, { usedProjects: { local: [fixture.project.id, ...extra.map((item) => item.id)] } })
+  await page.goto("/")
+
+  const search = page.getByRole("textbox", { name: "Search projects", exact: true })
+  const rows = page.locator('[data-component="home-project-row"]')
+  const row = (name: string) => rows.filter({ hasText: name })
+  await expect(rows).toHaveCount(3)
+
+  await search.fill("alpha")
+  await expect(row("Alpha")).toBeVisible()
+  await expect(rows).toHaveCount(1)
+
+  await search.fill("missing")
+  await expect(page.getByText("No projects found for missing")).toBeVisible()
+  await expect(rows).toHaveCount(0)
+
+  await page.getByRole("button", { name: "Clear", exact: true }).click()
+  await expect(search).toHaveValue("")
+  await expect(rows).toHaveCount(3)
+  await expect(row("Beta")).toBeVisible()
+})
+
+test("the home projects search spans servers and reveals collapsed projects", async ({ page }) => {
+  const gem = project({ id: "proj_gem", directory: "/remote/gem", name: "Gem" })
+  await mockStressTimeline(page)
+  await mockRemoteServer(page, { name: "Remote", directory: gem.worktree, project: gem })
+  await seed(page, { usedProjects: { local: [fixture.project.id], [REMOTE_SERVER]: [gem.id] } })
+  await page.goto("/")
+
+  const rows = page.locator("[data-home-row]")
+  const gemRow = page.locator('[data-component="home-project-row"]').filter({ hasText: "Gem" })
+  const remote = rows.filter({ hasText: "Remote" })
+  await expect(gemRow).toBeVisible()
+  await expect(rows).toHaveCount(4)
+
+  await remote.locator('[data-action="home-server-collapse"]').click()
+  await expect(gemRow).toHaveCount(0)
+
+  await page.getByRole("textbox", { name: "Search projects", exact: true }).fill("gem")
+  await expect(gemRow).toBeVisible()
+  await expect(rows).toHaveCount(2)
+
+  await page.getByRole("button", { name: "Clear", exact: true }).click()
+  await expect(rows).toHaveCount(3)
+  await expect(gemRow).toHaveCount(0)
 })
 
 test("the home projects column resizes with a persisted, clamped width", async ({ page }) => {
