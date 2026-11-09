@@ -124,6 +124,9 @@ export function createHomeController() {
   const newSessionProject = createMemo(() => selectedProject() ?? focusedServerCtx()?.projects.last() ?? projects()[0])
 
   return {
+    projectsWidth: layout.home.projectsWidth,
+    resizeProjects: layout.home.resizeProjects,
+    resetProjectsWidth: layout.home.resetProjectsWidth,
     selection: {
       value: selection,
       focusServer: (conn: ServerConnection.Any) => send({ type: "server.focused", server: ServerConnection.key(conn) }),

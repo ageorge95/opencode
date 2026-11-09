@@ -6,6 +6,7 @@ import { normalizeProjectInfo } from "@/runtime/server/global-sync/utils"
 import { useServer } from "@/runtime/server/current"
 import { useLanguage } from "@/runtime/i18n/language"
 import { SettingsSurfaceProvider } from "@/settings/surface"
+import { DEFAULT_HOME_PROJECTS_WIDTH } from "@/shell/state/layout"
 import type { HomeController } from "./model"
 import { createHomeProjectsController } from "./projects/controller"
 import { HomeView } from "./route"
@@ -93,6 +94,9 @@ function HomeStory(props: HomeArgs) {
   )
 
   const home: HomeController = {
+    projectsWidth: () => DEFAULT_HOME_PROJECTS_WIDTH,
+    resizeProjects: () => {},
+    resetProjectsWidth: () => {},
     selection: {
       value: () => ({ server: server.key, directory: directory() }),
       focusServer: () => setDirectory(undefined),

@@ -1,3 +1,4 @@
+import type { Accessor } from "solid-js"
 import type { HomeProjectsController } from "./controller"
 import { HomeProjectsView } from "./view"
 import type { HomeScrollController } from "../scroll"
@@ -10,6 +11,7 @@ export function HomeProjects(props: {
   scope?: boolean
   /** Runs after a project or server is picked, or a project is added (which selects it). */
   onPick?: () => void
+  maxProjectsWidth?: Accessor<number>
 }) {
   const settings = useSettings()
 
@@ -19,6 +21,10 @@ export function HomeProjects(props: {
       scope={props.scope}
       serverScope={settings.appearance.navigationPrototype()}
       language={props.projects.copy.language}
+      projectsWidth={props.projects.width}
+      maxProjectsWidth={props.maxProjectsWidth}
+      onResizeProjects={props.projects.resize}
+      onResetProjectsWidth={props.projects.resetWidth}
       servers={props.projects.server.list()}
       projects={props.projects.project.list()}
       selection={props.projects.selection.value()}

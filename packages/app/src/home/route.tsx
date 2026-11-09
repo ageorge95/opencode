@@ -1,7 +1,7 @@
 import { ScrollView } from "@opencode/ui/scroll-view"
 import { createMediaQuery } from "@solid-primitives/media"
 import { createMemo, onMount, Show } from "solid-js"
-import { useLayout } from "@/shell/state/layout"
+import { MAX_HOME_PROJECTS_WIDTH, useLayout } from "@/shell/state/layout"
 import { useSettings } from "@/settings/model"
 import { useProjectNavigation } from "@/shell/project-navigation"
 import { createProviderTip, ProviderTip } from "@/providers/connect/tip"
@@ -75,6 +75,11 @@ export function HomeView(props: {
 
   const scroll = createHomeScrollController(props.search.result.groups)
 
+  const maxProjectsWidth = () =>
+    typeof window !== "undefined"
+      ? Math.min(MAX_HOME_PROJECTS_WIDTH, Math.max(300, window.innerWidth - 480))
+      : MAX_HOME_PROJECTS_WIDTH
+
   return (
     <div
       data-slot="home-panel"
@@ -101,13 +106,14 @@ export function HomeView(props: {
               scoped()
                 ? "mx-auto grid min-h-full w-full max-w-[768px] grid-rows-[minmax(0,1fr)] px-3 lg:px-6"
                 : `
-            mx-auto grid min-h-full w-full max-w-[1056px] grid-rows-[auto_minmax(0,1fr)] gap-4 px-3
-            max-md:grid-rows-[minmax(0,1fr)] lg:grid-cols-[256px_minmax(0,720px)] lg:grid-rows-1 lg:gap-8 lg:px-6
+            home-content-grid mx-auto grid min-h-full w-full grid-rows-[auto_minmax(0,1fr)] gap-4 px-3
+            max-md:grid-rows-[minmax(0,1fr)] lg:grid-rows-1 lg:gap-8 lg:px-6
           `
             }
+            style={scoped() ? undefined : { "--home-projects-width": `${props.projects.width()}px` }}
           >
             <Show when={!mobile() && !scoped()}>
-              <HomeProjects projects={props.projects} scroll={scroll} />
+              <HomeProjects projects={props.projects} scroll={scroll} maxProjectsWidth={maxProjectsWidth} />
             </Show>
             <HomeSessions
               sessions={props.sessions}
