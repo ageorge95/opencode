@@ -218,7 +218,12 @@ const Group = HttpApiGroup.make("mock")
       error: MockInternal.pipe(HttpApiSchema.status(500)),
     }),
   )
-  .add(HttpApiEndpoint.get("projectList", "/api/project", { success: Json }))
+  .add(
+    HttpApiEndpoint.get("projectList", "/api/project", {
+      query: Schema.Struct({ archived: Schema.optional(Schema.String) }),
+      success: Json,
+    }),
+  )
   .add(
     HttpApiEndpoint.patch("projectUpdate", "/api/project/:projectID", {
       params: { projectID: Schema.String },

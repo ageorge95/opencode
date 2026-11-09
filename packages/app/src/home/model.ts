@@ -36,9 +36,16 @@ export function createHomeController() {
           key,
           failed: isServerFailed(global.servers.health[key]),
           connected: ctx?.sdk.connection.status() === "connected",
-          projectsReady: !!ctx?.sync.project.ready() && servers.projects.forServer(key).legacy() === undefined,
+          projectsReady:
+            !!ctx?.sync.project.ready() &&
+            !!ctx.sync.project.archived.ready() &&
+            servers.projects.forServer(key).legacy() === undefined,
           usedProjects: (ctx?.projects.used() ?? []).map((project) => ({ id: project.id, worktree: project.worktree })),
           closedProjects: (ctx?.projects.closed() ?? []).map((project) => ({
+            id: project.id,
+            worktree: project.worktree,
+          })),
+          missingProjects: (ctx?.projects.missing() ?? []).map((project) => ({
             id: project.id,
             worktree: project.worktree,
           })),
@@ -120,6 +127,14 @@ export function createHomeController() {
   const projects = createMemo(() => focusedServerCtx()?.projects.used() ?? [])
   // Closed projects stay listed and selectable, so their sessions remain reachable.
   const closedProjects = createMemo(() => focusedServerCtx()?.projects.closed() ?? [])
+  // So do projects whose folders are gone, which the server archived.
+  const missingProjects = createMemo(() => focusedServerCtx()?.projects.missing() ?? [])
+
+  const selectedMissing = createMemo(() => {
+    const directory = selection().directory
+
+    return directory ? missingProjects().find((project) => pathKey(project.worktree) === pathKey(directory)) : undefined
+  })
 
   const selectedProject = createMemo(() => {
     const directory = selection().directory
@@ -127,10 +142,13 @@ export function createHomeController() {
     if (!directory) return
     const match = (project: { worktree: string }) => pathKey(project.worktree) === pathKey(directory)
 
-    return projects().find(match) ?? closedProjects().find(match)
+    return projects().find(match) ?? closedProjects().find(match) ?? selectedMissing()
   })
 
-  const newSessionProject = createMemo(() => selectedProject() ?? focusedServerCtx()?.projects.last() ?? projects()[0])
+  // A project whose folder is gone cannot start a session.
+  const newSessionProject = createMemo(() =>
+    selectedMissing() ? undefined : (selectedProject() ?? focusedServerCtx()?.projects.last() ?? projects()[0]),
+  )
 
   return {
     projectsWidth: layout.home.projectsWidth,
@@ -156,6 +174,8 @@ export function createHomeController() {
       forServer: (conn: ServerConnection.Any) => global.serverCtx(ServerConnection.key(conn))?.projects.used() ?? [],
       closedForServer: (conn: ServerConnection.Any) =>
         global.serverCtx(ServerConnection.key(conn))?.projects.closed() ?? [],
+      missingForServer: (conn: ServerConnection.Any) =>
+        global.serverCtx(ServerConnection.key(conn))?.projects.missing() ?? [],
       select: (conn: ServerConnection.Any, directory: string) =>
         send({ type: "project.toggled", server: ServerConnection.key(conn), directory }),
       reopen: (conn: ServerConnection.Any, directory: string) => {
