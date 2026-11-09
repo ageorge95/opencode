@@ -71,6 +71,9 @@ export function Composer(props: {
         queueFirstLabel={language.t("session.queue.first")}
         exitShellKeybind={[formatKeybind("esc", language.t)]}
         suggestionBoundary={props.suggestionBoundary}
+        expanded={props.model.expand?.expanded()}
+        onToggleExpanded={props.model.expand?.toggle}
+        expandKeybind={command.keybindParts("prompt.expand")}
         modelControl={
           <ComposerModelControl
             loading={props.model.model.loading}
