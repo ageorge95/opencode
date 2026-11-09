@@ -220,6 +220,15 @@ function ready(state: Extract<State, { status: "ready" }>, event: Event): Transi
   return unchanged(state)
 }
 
+/** The app reached a service: the active one, or the one a running reconnect or a failed attempt left behind. */
+export function reachedService(state: State) {
+  return (
+    state.status === "ready" ||
+    state.status === "reconnecting" ||
+    (state.status === "failed" && state.last !== undefined)
+  )
+}
+
 function resolve(replies: readonly Reply[], data: Data): Command[] {
   return replies.length > 0 ? [{ type: "resolve", replies, data }] : []
 }
@@ -347,5 +356,6 @@ export const make = Effect.fn("BackgroundServiceMachine.make")(function* (input:
   return {
     connection: request("connection.requested"),
     reconnect: request("reconnect.requested"),
+    reached: () => reachedService(current.state),
   }
 })

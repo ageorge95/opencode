@@ -80,4 +80,6 @@ export type ElectronAPI = {
   setSpellcheckEnabled(enabled: boolean): Promise<void>
   recordFatalRendererError(error: FatalRendererError): Promise<void>
   setNativeTranslations(bundle: DesktopNativeBundle): Promise<void>
+  getStopServiceOnQuit(): Promise<boolean>
+  setStopServiceOnQuit(enabled: boolean): Promise<void>
 }

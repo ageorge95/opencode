@@ -251,6 +251,14 @@ export const SettingsGeneral: Component = () => {
     write: (checked) => platform.setSpellcheckEnabled?.(checked),
   })
 
+  const stopServiceOnQuit = createOptimisticSetting({
+    source: () => (desktop() && "getStopServiceOnQuit" in platform) || undefined,
+    initial: false,
+    initialMeta: undefined,
+    load: async () => ({ value: (await platform.getStopServiceOnQuit?.()) ?? false, meta: undefined }),
+    write: (checked) => platform.setStopServiceOnQuit?.(checked),
+  })
+
   const GeneralSection = () => (
     <div class="settings-section">
       <h3 class="settings-section-title">{language.t("settings.general.section.general")}</h3>
@@ -290,6 +298,17 @@ export const SettingsGeneral: Component = () => {
           >
             <div data-action="settings-spellcheck">
               <Switch checked={spellcheck.value()} onChange={spellcheck.select} />
+            </div>
+          </SettingsRow>
+        </Show>
+
+        <Show when={desktop() && "getStopServiceOnQuit" in platform}>
+          <SettingsRow
+            title={language.t("settings.general.row.stopServiceOnQuit.title")}
+            description={language.t("settings.general.row.stopServiceOnQuit.description")}
+          >
+            <div data-action="settings-stop-service-on-quit">
+              <Switch checked={stopServiceOnQuit.value()} onChange={stopServiceOnQuit.select} />
             </div>
           </SettingsRow>
         </Show>

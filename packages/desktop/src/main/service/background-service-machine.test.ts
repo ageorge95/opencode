@@ -276,6 +276,28 @@ describe("background service connection", () => {
       r3,
     ])
   })
+
+  // Stop-on-quit stops only a service the app reached, never one started elsewhere before the app connected.
+  test.each([
+    ["connecting", BackgroundServiceMachine.initialTransition().state, false],
+    ["ready", readyA, true],
+    ["reconnecting", replay([{ type: "reconnect.requested", reply: reply() }], readyA).state, true],
+    ["failed first connect", replay([{ type: "connect.failed", attempt: 1, error: new Error("boom") }]).state, false],
+    [
+      "failed reconnect",
+      replay(
+        [
+          { type: "reconnect.requested", reply: reply() },
+          { type: "connect.failed", attempt: 2, error: new Error("boom") },
+        ],
+        readyA,
+      ).state,
+      true,
+    ],
+    ["disposed", replay([{ type: "disposed" }], readyA).state, false],
+  ] as const)("a %s connection reached a service: %p", (_, state, reached) => {
+    expect(BackgroundServiceMachine.reachedService(state)).toBe(reached)
+  })
 })
 
 describe("background service driver", () => {
