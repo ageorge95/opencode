@@ -38,6 +38,10 @@ export function createHomeController() {
           connected: ctx?.sdk.connection.status() === "connected",
           projectsReady: !!ctx?.sync.project.ready() && servers.projects.forServer(key).legacy() === undefined,
           usedProjects: (ctx?.projects.used() ?? []).map((project) => ({ id: project.id, worktree: project.worktree })),
+          closedProjects: (ctx?.projects.closed() ?? []).map((project) => ({
+            id: project.id,
+            worktree: project.worktree,
+          })),
         }
       }),
     }),
@@ -114,11 +118,16 @@ export function createHomeController() {
   const focusedSync = () => focusedServerCtx()?.sync
   // Home lists the server's projects this client has used.
   const projects = createMemo(() => focusedServerCtx()?.projects.used() ?? [])
+  // Closed projects stay listed and selectable, so their sessions remain reachable.
+  const closedProjects = createMemo(() => focusedServerCtx()?.projects.closed() ?? [])
 
   const selectedProject = createMemo(() => {
     const directory = selection().directory
 
-    return directory ? projects().find((project) => pathKey(project.worktree) === pathKey(directory)) : undefined
+    if (!directory) return
+    const match = (project: { worktree: string }) => pathKey(project.worktree) === pathKey(directory)
+
+    return projects().find(match) ?? closedProjects().find(match)
   })
 
   const newSessionProject = createMemo(() => selectedProject() ?? focusedServerCtx()?.projects.last() ?? projects()[0])
@@ -145,8 +154,14 @@ export function createHomeController() {
       selected: selectedProject,
       newSession: newSessionProject,
       forServer: (conn: ServerConnection.Any) => global.serverCtx(ServerConnection.key(conn))?.projects.used() ?? [],
+      closedForServer: (conn: ServerConnection.Any) =>
+        global.serverCtx(ServerConnection.key(conn))?.projects.closed() ?? [],
       select: (conn: ServerConnection.Any, directory: string) =>
         send({ type: "project.toggled", server: ServerConnection.key(conn), directory }),
+      reopen: (conn: ServerConnection.Any, directory: string) => {
+        global.serverCtx(ServerConnection.key(conn))?.projects.touch(directory)
+        send({ type: "project.selected", server: ServerConnection.key(conn), directory })
+      },
       add: (conn: ServerConnection.Any, directories: string[]) =>
         send({ type: "project.add", server: ServerConnection.key(conn), directories }),
       openNewSession: () => {

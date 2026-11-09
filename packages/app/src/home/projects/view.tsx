@@ -67,6 +67,7 @@ export type HomeProjectsViewProps = {
   serverHealth: (server: ServerConnection.Any) => ServerHealth | undefined
   serverLabel: (server: ServerConnection.Any) => string
   projectsForServer: (server: ServerConnection.Any) => LocalProject[]
+  closedProjectsForServer: (server: ServerConnection.Any) => LocalProject[]
   collapsed: (server: ServerConnection.Any) => boolean
   canRevealProject: (server: ServerConnection.Any) => boolean
   hasUnread: (server: ServerConnection.Any, project: LocalProject) => boolean
@@ -89,17 +90,24 @@ export type HomeProjectsViewProps = {
   onRevealProject: (server: ServerConnection.Any, project: LocalProject) => void
   onClearNotifications: (server: ServerConnection.Any, project: LocalProject) => void
   onHideProject: (server: ServerConnection.Any, project: LocalProject) => void
+  onReopenProject: (server: ServerConnection.Any, project: LocalProject) => void
   onOpenSettings: () => void
   onOpenHelp: () => void
 }
 
 export function HomeProjectsView(props: HomeProjectsViewProps) {
   const [state, setState] = createStore({ open: false })
-  const selected = createMemo(() => props.projects.find((project) => project.worktree === props.selection.directory))
 
   const server = createMemo(() =>
     props.servers.find((server) => ServerConnection.key(server) === props.selection.server),
   )
+
+  const selected = createMemo(() => {
+    const conn = server()
+    const match = (project: LocalProject) => project.worktree === props.selection.directory
+
+    return props.projects.find(match) ?? (conn ? props.closedProjectsForServer(conn).find(match) : undefined)
+  })
 
   return (
     <Show when={props.dropdown} fallback={<HomeProjectsPanel {...props} />}>
@@ -195,7 +203,13 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
   // A search spans every added project, so servers without a match step aside and
   // collapsed servers expand for their matching projects.
   const visibleServers = () =>
-    searching() ? props.servers.filter((server) => visible(props.projectsForServer(server)).length > 0) : props.servers
+    searching()
+      ? props.servers.filter(
+          (server) =>
+            visible(props.projectsForServer(server)).length > 0 ||
+            visible(props.closedProjectsForServer(server)).length > 0,
+        )
+      : props.servers
 
   const contextMenuProps = {
     contextMenuOpen: (id: string) => state.open === id,
@@ -316,19 +330,37 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
                 {(server) => (
                   <div class={props.dropdown ? "" : "pe-3"}>
                     <Show
-                      when={props.projects.length > 0 || searching()}
+                      when={
+                        props.projects.length > 0 || props.closedProjectsForServer(server()).length > 0 || searching()
+                      }
                       fallback={<HomeProjectEmpty {...props} server={server()} />}
                     >
                       <Show
-                        when={visible(props.projects).length > 0}
+                        when={
+                          visible(props.projects).length > 0 ||
+                          visible(props.closedProjectsForServer(server())).length > 0
+                        }
                         fallback={<HomeProjectNoMatch language={props.language} query={query()} />}
                       >
-                        <HomeProjectList
-                          {...props}
-                          {...contextMenuProps}
-                          server={server()}
-                          items={visible(props.projects)}
-                        />
+                        <div class="flex min-w-0 flex-col gap-1">
+                          <Show when={visible(props.projects).length > 0}>
+                            <HomeProjectList
+                              {...props}
+                              {...contextMenuProps}
+                              server={server()}
+                              items={visible(props.projects)}
+                            />
+                          </Show>
+                          <Show when={visible(props.closedProjectsForServer(server())).length > 0}>
+                            <HomeProjectList
+                              {...props}
+                              {...contextMenuProps}
+                              server={server()}
+                              items={visible(props.closedProjectsForServer(server()))}
+                              closed
+                            />
+                          </Show>
+                        </div>
                       </Show>
                       <Show when={props.dropdown}>
                         <HomeProjectNavButton
@@ -356,8 +388,9 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
                 <For each={visibleServers()}>
                   {(item) => {
                     const projects = () => visible(props.projectsForServer(item))
+                    const closed = () => visible(props.closedProjectsForServer(item))
                     const healthy = () => isServerHealthy(props.serverHealth(item))
-                    const hasProjects = () => projects().length > 0
+                    const hasProjects = () => projects().length > 0 || closed().length > 0
                     const collapsed = () => props.collapsed(item)
                     const authentication = () => signInRequired(item, props.serverHealth(item))
 
@@ -402,7 +435,12 @@ function HomeProjectsPanel(props: HomeProjectsViewProps) {
                           }
                         >
                           <div class="mx-3 h-px bg-v2-border-border-base" />
-                          <HomeProjectList {...props} {...contextMenuProps} server={item} items={projects()} />
+                          <Show when={projects().length > 0}>
+                            <HomeProjectList {...props} {...contextMenuProps} server={item} items={projects()} />
+                          </Show>
+                          <Show when={closed().length > 0}>
+                            <HomeProjectList {...props} {...contextMenuProps} server={item} items={closed()} closed />
+                          </Show>
                         </Show>
                       </div>
                     )
@@ -472,6 +510,7 @@ function HomeServerRow(props: {
   language: HomeProjectsViewProps["language"]
   serverLabel: HomeProjectsViewProps["serverLabel"]
   projectsForServer: HomeProjectsViewProps["projectsForServer"]
+  closedProjectsForServer: HomeProjectsViewProps["closedProjectsForServer"]
   contextMenuOpen: HomeProjectsContextMenuProps["contextMenuOpen"]
   onFocusServer: HomeProjectsViewProps["onFocusServer"]
   onToggleCollapsed: HomeProjectsViewProps["onToggleCollapsed"]
@@ -490,7 +529,11 @@ function HomeServerRow(props: {
   const healthy = () => isServerHealthy(props.health)
   const authentication = () => signInRequired(props.server, props.health)
   const incompatible = () => isServerIncompatible(props.health)
-  const canToggle = () => healthy() && props.projectsForServer(props.server).length > 0
+
+  const canToggle = () =>
+    healthy() &&
+    (props.projectsForServer(props.server).length > 0 || props.closedProjectsForServer(props.server).length > 0)
+
   const contextMenuID = () => serverContextMenuID(props.server)
   onCleanup(() => {
     const id = contextMenuID()
@@ -624,6 +667,8 @@ type HomeProjectListProps = HomeProjectsViewProps &
   HomeProjectsContextMenuProps & {
     server: ServerConnection.Any
     items: LocalProject[]
+    // Closed rows render dimmed with a Closed label; they stay selectable and reopen from their menu.
+    closed?: boolean
   }
 
 function HomeProjectList(props: HomeProjectListProps) {
@@ -710,6 +755,7 @@ function HomeProjectRow(
       server: ServerConnection.Any
       selected: boolean
       unread: boolean
+      closed?: boolean
     },
 ) {
   const serverUnreachable = () => isServerFailed(props.serverHealth(props.server))
@@ -724,8 +770,10 @@ function HomeProjectRow(
   return (
     <div
       class="group/project relative flex h-7 min-w-0 items-center rounded-[6px]"
+      classList={{ "opacity-60": props.closed }}
       data-home-row
       data-dimmed={serverUnreachable()}
+      data-closed={props.closed ? "" : undefined}
       data-selected={props.selected ? "" : undefined}
       onContextMenu={(event) => {
         event.preventDefault()
@@ -742,8 +790,22 @@ function HomeProjectRow(
         onClick={() => props.onSelectProject(props.server, props.project.worktree)}
       >
         <HomeProjectAvatar project={props.project} />
-        <span data-slot="home-row-label" class={HOME_PROJECT_NAV_LABEL} title={displayName(props.project)}>
-          {displayName(props.project)}
+        <span
+          data-slot="home-row-label"
+          class="flex min-w-0 flex-1 items-center gap-1"
+          title={displayName(props.project)}
+        >
+          <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{displayName(props.project)}</span>
+          <Show when={props.closed}>
+            <span
+              class={`
+                shrink-0 rounded-[3px] border border-v2-border-border-base px-1 py-0.5
+                text-[9px] leading-none text-v2-text-text-muted
+              `}
+            >
+              {props.language.t("home.project.closed")}
+            </span>
+          </Show>
         </span>
       </HomeProjectNavButton>
       <div

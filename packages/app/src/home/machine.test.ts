@@ -26,6 +26,7 @@ const server = (key: ServerConnection.Key, input: Partial<HomeServerSnapshot> = 
   connected: true,
   projectsReady: true,
   usedProjects: [],
+  closedProjects: [],
   ...input,
 })
 
@@ -221,6 +222,29 @@ describe("home selection machine", () => {
     expect(on.effects).toEqual([{ type: "selection.persist", selection: { server: SIDECAR, directory: API.worktree } }])
     const off = toggle(on.state, SIDECAR, "C:\\OpenCode\\api\\")
     expect(off.effects).toEqual([{ type: "selection.persist", selection: { server: SIDECAR } }])
+  })
+
+  test("keeps a closed project selectable, and reopening the selected one keeps it selected", () => {
+    const servers = [server(SIDECAR, { closedProjects: [API] })]
+    const restored = settle(env({ stored: { server: SIDECAR, directory: API.worktree }, servers }))
+    expect(restored).toMatchObject({ status: "ready", server: SIDECAR, project: API })
+
+    const ready = settle(env({ stored: { server: SIDECAR }, servers }))
+    const on = transitionHomeSelection(ready, { type: "project.toggled", server: SIDECAR, directory: API.worktree })
+    expect(on.effects[0]).toEqual({
+      type: "selection.persist",
+      selection: { server: SIDECAR, directory: API.worktree },
+    })
+
+    const reopened = transitionHomeSelection(on.state, {
+      type: "project.selected",
+      server: SIDECAR,
+      directory: API.worktree,
+    })
+
+    expect(reopened).toEqual({ state: on.state, effects: [] })
+    const off = transitionHomeSelection(on.state, { type: "project.toggled", server: SIDECAR, directory: API.worktree })
+    expect(selectHomeSelection(off.state)).toEqual({ server: SIDECAR })
   })
 
   test("an added project is selected unless the user chose something else first", () => {
