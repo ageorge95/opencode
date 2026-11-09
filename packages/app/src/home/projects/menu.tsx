@@ -19,6 +19,9 @@ export function ProjectMenuItems(props: {
   onRevealProject: (server: ServerConnection.Any, project: LocalProject) => void
   onClearNotifications: (server: ServerConnection.Any, project: LocalProject) => void
   onHideProject: (server: ServerConnection.Any, project: LocalProject) => void
+  /** A closed project reopens from its menu instead of closing. */
+  closed?: boolean
+  onReopenProject?: (server: ServerConnection.Any, project: LocalProject) => void
 }) {
   const language = useLanguage()
 
@@ -51,8 +54,14 @@ export function ProjectMenuItems(props: {
         {language.t("sidebar.project.clearNotifications")}
       </Menu.Item>
       <Menu.Separator />
-      <Menu.Item onSelect={() => props.onHideProject(props.server, props.project)}>
-        {language.t("common.close")}
+      <Menu.Item
+        onSelect={() =>
+          props.closed
+            ? props.onReopenProject?.(props.server, props.project)
+            : props.onHideProject(props.server, props.project)
+        }
+      >
+        {language.t(props.closed ? "command.project.open" : "common.close")}
       </Menu.Item>
     </>
   )

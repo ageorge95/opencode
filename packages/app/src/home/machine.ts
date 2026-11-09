@@ -15,6 +15,8 @@ export type HomeServerSnapshot = {
   /** The server's project list loaded, and the directories an older build listed for it are migrated. */
   readonly projectsReady: boolean
   readonly usedProjects: readonly HomeProjectItem[]
+  /** Projects this client closed. Home keeps listing them, so they stay selectable for their sessions. */
+  readonly closedProjects: readonly HomeProjectItem[]
 }
 
 export type HomeEnvSnapshot = {
@@ -52,7 +54,7 @@ type HomeSelectionBase = {
  * - `hydrating`: the layout or a server source has not loaded. Home shows the stored server when it is listed and the
  *   first server otherwise, and writes nothing. A selection the user makes meanwhile is `override`, which wins.
  * - `verifying`: the server is listed, and the directory waits for that server's projects before it is kept or cleared.
- * - `ready`: the server and its optional used project are checked against the loaded state.
+ * - `ready`: the server and its optional listed project are checked against the loaded state.
  * - `disposed`: Home unmounted; late results are ignored.
  */
 export type HomeSelectionState =
@@ -73,6 +75,8 @@ export type HomeSelectionEvent =
   | { readonly type: "env.synced"; readonly env: HomeEnvSnapshot }
   | { readonly type: "server.focused"; readonly server: ServerConnection.Key }
   | { readonly type: "project.toggled"; readonly server: ServerConnection.Key; readonly directory: string }
+  /** Selects a listed project without toggling it off, as reopening a closed project does. */
+  | { readonly type: "project.selected"; readonly server: ServerConnection.Key; readonly directory: string }
   | { readonly type: "project.add"; readonly server: ServerConnection.Key; readonly directories: readonly string[] }
   | { readonly type: "project.added"; readonly attempt: number; readonly project: HomeProjectItem | undefined }
   | { readonly type: "worktrees.listed"; readonly attempt: number }
@@ -126,11 +130,13 @@ export function transitionHomeSelection(state: HomeSelectionState, event: HomeSe
 
   if (event.type === "server.focused") return choose(state, { server: event.server })
 
-  if (event.type === "project.toggled") {
+  if (event.type === "project.toggled" || event.type === "project.selected") {
     const entry = state.servers.find((server) => server.key === event.server)
     const project = entry && !entry.failed ? findProject(entry, event.directory) : undefined
 
     if (!entry || !project) return { state, effects: NONE }
+
+    if (event.type === "project.selected") return choose(state, { server: entry.key, directory: project.worktree })
 
     return choose(state, toggleHomeProjectSelection(selectHomeSelection(state), entry.key, project.worktree))
   }
@@ -163,7 +169,7 @@ export function transitionHomeSelection(state: HomeSelectionState, event: HomeSe
   }
 }
 
-/** What Home shows as selected: always a listed server while there is one, and a used project's own path. */
+/** What Home shows as selected: always a listed server while there is one, and a listed project's own path. */
 export function selectHomeSelection(state: HomeSelectionState): HomeProjectSelection {
   if (state.status === "disposed") return {}
 
@@ -320,20 +326,25 @@ function sameServers(a: readonly HomeServerSnapshot[], b: readonly HomeServerSna
         item.failed === other.failed &&
         item.connected === other.connected &&
         item.projectsReady === other.projectsReady &&
-        item.usedProjects.length === other.usedProjects.length &&
-        item.usedProjects.every(
-          (project, at) =>
-            project.id === other.usedProjects[at]!.id && project.worktree === other.usedProjects[at]!.worktree,
-        )
+        sameProjects(item.usedProjects, other.usedProjects) &&
+        sameProjects(item.closedProjects, other.closedProjects)
       )
     })
   )
 }
 
+function sameProjects(a: readonly HomeProjectItem[], b: readonly HomeProjectItem[]) {
+  return (
+    a.length === b.length && a.every((project, at) => project.id === b[at]!.id && project.worktree === b[at]!.worktree)
+  )
+}
+
+// The projects Home lists for a server: the used ones, then the closed ones.
 function findProject(server: HomeServerSnapshot, directory: string) {
   const key = pathKey(directory)
+  const match = (project: HomeProjectItem) => pathKey(project.worktree) === key
 
-  return server.usedProjects.find((project) => pathKey(project.worktree) === key)
+  return server.usedProjects.find(match) ?? server.closedProjects.find(match)
 }
 
 // A new object every time: `layout.home.setSelection` reconciles it into the layout store.
