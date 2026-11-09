@@ -12,6 +12,7 @@ import { ApplicationLifecycle } from "../lifecycle"
 import { finishFirstLaunchOnboarding, isFirstLaunchOnboardingPending } from "../lifecycle/onboarding"
 import { BackgroundService } from "../service/background-service"
 import { SidecarCredentials } from "../service/sidecar-credentials"
+import { getStopServiceOnQuit, setStopServiceOnQuit } from "../service/stop-on-quit"
 import { getWindowID, setBackgroundColor } from "../windows"
 import { sender } from "./context"
 
@@ -64,6 +65,8 @@ export const appHandlers = AppRpcs.toLayer(
           // An installed menu rebuilds through the translation listener in `ipc.ts`.
           setNativeTranslations(bundle)
         }),
+      AppGetStopServiceOnQuit: () => Effect.sync(getStopServiceOnQuit),
+      AppSetStopServiceOnQuit: ({ enabled }) => Effect.sync(() => setStopServiceOnQuit(enabled)),
       AppRelaunch: () => Effect.sync(lifecycle.relaunch),
     })
   }),
