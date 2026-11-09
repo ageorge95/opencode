@@ -931,6 +931,38 @@ test("keeps a line added at the end of a scrolling prompt clear of the bottom fa
     .toBe(0)
 })
 
+test("the expand toggle gives long prompts a tall writing area that persists across reloads", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 })
+  const { editor } = await openSession(page, { name: "ComposerExpand" })
+  const viewport = page.locator('[data-component="composer-scroll"]')
+  const expand = page.getByRole("button", { name: "Expand prompt", exact: true })
+  const collapse = page.getByRole("button", { name: "Collapse prompt", exact: true })
+  const height = () => viewport.evaluate((element) => Math.round(element.getBoundingClientRect().height))
+  await editor.click()
+
+  for (const line of Array.from({ length: 20 }, (_, index) => `Line ${index + 1}`)) {
+    await page.keyboard.type(line)
+    await page.keyboard.press("Shift+Enter")
+  }
+
+  await expect.poll(() => editor.innerText()).toMatch(/Line 20\n*$/)
+  await expect.poll(height).toBe(180)
+
+  await expand.click()
+  await expect(collapse).toHaveAttribute("aria-pressed", "true")
+  await expect.poll(height).toBe(360)
+  await expect(editor).toBeFocused()
+
+  await page.reload()
+  await expect(collapse).toBeVisible()
+  await expect.poll(height).toBe(360)
+
+  await page.locator('[data-component="composer-editor"]').click()
+  await page.keyboard.press("ControlOrMeta+Shift+Enter")
+  await expect(expand).toHaveAttribute("aria-pressed", "false")
+  await expect.poll(height).toBeLessThanOrEqual(180)
+})
+
 test("Enter that confirms an IME candidate never sends, even after Safari's early compositionend", async ({ page }) => {
   const prompts: Parameters<NonNullable<MockServerConfig["onPrompt"]>>[0]["body"][] = []
   const view = await openSession(page, { name: "ComposerImeEnter", onPrompt: (input) => void prompts.push(input.body) })
