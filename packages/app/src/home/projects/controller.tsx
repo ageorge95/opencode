@@ -6,6 +6,7 @@ import { usePlatform } from "@/runtime/platform/platform"
 import { ServerConnection } from "@/runtime/server/registry"
 import { isServerFailed } from "@/runtime/server/health-machine"
 import { homeProjectDirectories } from "@/shell/layout/helpers"
+import type { LocalProject } from "@/shell/state/layout"
 import { Persist, persisted } from "@/runtime/persistence/storage"
 import { createResource } from "solid-js"
 import { Schema } from "effect"
@@ -62,6 +63,7 @@ export function createHomeProjectsController(home: HomeController) {
       health: home.server.health,
       label: home.server.label,
       projects: home.project.forServer,
+      closedProjects: home.project.closedForServer,
       collapsed: (conn: ServerConnection.Any) => state().collapsed[ServerConnection.key(conn)] ?? false,
       toggleCollapsed: (conn: ServerConnection.Any) => {
         const key = ServerConnection.key(conn)
@@ -99,6 +101,10 @@ export function createHomeProjectsController(home: HomeController) {
         choose(conn)
       },
       hide: actions.hide,
+      reopen: (conn: ServerConnection.Any, project: LocalProject) => {
+        if (actions.authenticate(conn, (next) => home.project.reopen(next, project.worktree))) return
+        home.project.reopen(conn, project.worktree)
+      },
       canReveal: actions.canReveal,
       reveal: actions.reveal,
     },

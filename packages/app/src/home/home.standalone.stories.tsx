@@ -113,6 +113,8 @@ function HomeStory(props: HomeArgs) {
     project: {
       list: visible,
       forServer: visible,
+      closedForServer: () => [],
+      reopen: () => {},
       selected,
       newSession: () => selected() ?? visible()[0],
       select: (_, next) => setDirectory(directory() === next ? undefined : next),
