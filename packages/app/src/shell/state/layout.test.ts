@@ -25,6 +25,7 @@ describe("layout persistence", () => {
     expect(restore({ fileTree: { width: 260 } }).fileTree.width).toBe(200)
     expect(restore({ fileTree: {} }).fileTree.width).toBe(300)
     expect(restore({ review: {}, fileTree: { opened: false } }).review.panelOpened).toBe(false)
+    expect(restore({ home: { projectsWidth: 512 } }).home.projectsWidth).toBe(512)
     expect(() => Schema.decodeUnknownSync(layoutSchema)({})).toThrow()
   })
 
@@ -39,7 +40,7 @@ describe("layout persistence", () => {
       mobileSidebar: { opened: false },
       sessionTabs: {},
       sessionView: {},
-      home: { selection: { server: ServerConnection.Key.make("local") } },
+      home: { selection: { server: ServerConnection.Key.make("local") }, projectsWidth: 320 },
     })
     expect(
       decode({
@@ -47,6 +48,7 @@ describe("layout persistence", () => {
         terminal: null,
         session: { width: undefined },
         review: { panelOpened: "bad" },
+        home: { projectsWidth: "bad" },
       }),
     ).toEqual(defaults)
   })
