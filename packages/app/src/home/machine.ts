@@ -17,6 +17,8 @@ export type HomeServerSnapshot = {
   readonly usedProjects: readonly HomeProjectItem[]
   /** Projects this client closed. Home keeps listing them, so they stay selectable for their sessions. */
   readonly closedProjects: readonly HomeProjectItem[]
+  /** Projects whose folders are gone, which the server archived. Selectable for their sessions, with no worktrees. */
+  readonly missingProjects: readonly HomeProjectItem[]
 }
 
 export type HomeEnvSnapshot = {
@@ -286,7 +288,7 @@ function worktreeTarget(state: LiveState) {
   const entry = state.servers.find((server) => server.key === current.server)
 
   if (!entry?.connected || !current.directory) return
-  const project = findProject(entry, current.directory)
+  const project = findProject(entry, current.directory, { missing: false })
 
   if (!project) return
 
@@ -327,7 +329,8 @@ function sameServers(a: readonly HomeServerSnapshot[], b: readonly HomeServerSna
         item.connected === other.connected &&
         item.projectsReady === other.projectsReady &&
         sameProjects(item.usedProjects, other.usedProjects) &&
-        sameProjects(item.closedProjects, other.closedProjects)
+        sameProjects(item.closedProjects, other.closedProjects) &&
+        sameProjects(item.missingProjects, other.missingProjects)
       )
     })
   )
@@ -339,12 +342,17 @@ function sameProjects(a: readonly HomeProjectItem[], b: readonly HomeProjectItem
   )
 }
 
-// The projects Home lists for a server: the used ones, then the closed ones.
-function findProject(server: HomeServerSnapshot, directory: string) {
+// The projects Home lists for a server: the used ones, the closed ones, then the missing ones, whose folders are gone
+// and so have no worktrees to list.
+function findProject(server: HomeServerSnapshot, directory: string, options = { missing: true }) {
   const key = pathKey(directory)
   const match = (project: HomeProjectItem) => pathKey(project.worktree) === key
 
-  return server.usedProjects.find(match) ?? server.closedProjects.find(match)
+  return (
+    server.usedProjects.find(match) ??
+    server.closedProjects.find(match) ??
+    (options.missing ? server.missingProjects.find(match) : undefined)
+  )
 }
 
 // A new object every time: `layout.home.setSelection` reconciles it into the layout store.
