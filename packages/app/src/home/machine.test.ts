@@ -27,6 +27,7 @@ const server = (key: ServerConnection.Key, input: Partial<HomeServerSnapshot> = 
   projectsReady: true,
   usedProjects: [],
   closedProjects: [],
+  missingProjects: [],
   ...input,
 })
 
@@ -245,6 +246,22 @@ describe("home selection machine", () => {
     expect(reopened).toEqual({ state: on.state, effects: [] })
     const off = transitionHomeSelection(on.state, { type: "project.toggled", server: SIDECAR, directory: API.worktree })
     expect(selectHomeSelection(off.state)).toEqual({ server: SIDECAR })
+  })
+
+  test("keeps a missing project selectable for its sessions without listing worktrees of its gone folder", () => {
+    const stored = { server: SIDECAR, directory: API.worktree }
+
+    const restored = sync(
+      INITIAL_HOME_SELECTION_STATE,
+      env({ stored, servers: [server(SIDECAR, { missingProjects: [API] })] }),
+    )
+
+    expect(restored.state).toMatchObject({ status: "ready", server: SIDECAR, project: API })
+    expect(restored.effects).toEqual([])
+
+    const ready = settle(env({ stored: { server: SIDECAR }, servers: [server(SIDECAR, { missingProjects: [API] })] }))
+    const on = transitionHomeSelection(ready, { type: "project.toggled", server: SIDECAR, directory: API.worktree })
+    expect(on.effects).toEqual([{ type: "selection.persist", selection: { server: SIDECAR, directory: API.worktree } }])
   })
 
   test("an added project is selected unless the user chose something else first", () => {

@@ -114,6 +114,7 @@ function HomeStory(props: HomeArgs) {
       list: visible,
       forServer: visible,
       closedForServer: () => [],
+      missingForServer: () => [],
       reopen: () => {},
       selected,
       newSession: () => selected() ?? visible()[0],
