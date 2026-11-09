@@ -4,6 +4,7 @@ import { Context, Effect, FileSystem, Layer, Option, Path, Schema } from "effect
 import { SidecarChanged } from "../../shared/ipc-rpc/events"
 import { CHANNEL } from "../constants"
 import { emitIpcEvent } from "../ipc-events"
+import { Shutdown } from "../lifecycle/shutdown"
 import { getMainWindows } from "../windows"
 import { BackgroundServiceMachine } from "./background-service-machine"
 import { cleanStages } from "./cli-stages"
@@ -11,6 +12,7 @@ import { keptStages, serviceVersion, shouldRetryEnsure } from "./cli-version"
 import { DesktopCli } from "./desktop-cli"
 import { SidecarCredentials } from "./sidecar-credentials"
 import { takeSidecarProbe } from "./sidecar-probe"
+import { getStopServiceOnQuit } from "./stop-on-quit"
 
 export * as BackgroundService from "./background-service"
 
@@ -27,19 +29,42 @@ export const layer = Layer.effect(
   Service,
   Effect.gen(function* () {
     const context = yield* Effect.context<FileSystem.FileSystem | Path.Path | DesktopCli.Service>()
+    const shutdown = yield* Shutdown.Service
+    const path = yield* Path.Path
 
-    return Service.of(
-      yield* BackgroundServiceMachine.make({
-        probe: probe().pipe(Effect.provide(context)),
-        ensure: (mode) => ensure(mode).pipe(Effect.provide(context)),
-        publish: (data) => {
-          SidecarCredentials.set(data)
-          // Every window moves its requests and event stream to the new origin, not only the one that reconnected.
-          const event = new SidecarChanged({ url: data.url })
-          getMainWindows().forEach((win) => emitIpcEvent(win.webContents, event))
-        },
+    const machine = yield* BackgroundServiceMachine.make({
+      probe: probe().pipe(Effect.provide(context)),
+      ensure: (mode) => ensure(mode).pipe(Effect.provide(context)),
+      publish: (data) => {
+        SidecarCredentials.set(data)
+        // Every window moves its requests and event stream to the new origin, not only the one that reconnected.
+        const event = new SidecarChanged({ url: data.url })
+        getMainWindows().forEach((win) => emitIpcEvent(win.webContents, event))
+      },
+    })
+
+    // Opt-in from Settings: quitting stops the service this app connected to, as `opencode service stop` does.
+    // Without a connection there is nothing of ours to stop, so a service started elsewhere is left alone, and so is
+    // a server a development build reuses.
+    const remove = yield* shutdown.add({
+      stop: Effect.suspend(() => {
+        if (!getStopServiceOnQuit() || reusingServer() || !machine.reached()) return Effect.void
+        const file = registrationFile(path)
+
+        return Effect.tryPromise(() =>
+          import("@opencode/client/service").then((client) => client.Service.stop({ file })),
+        ).pipe(
+          Effect.tap(() => Effect.logInfo("v2 CLI background service stopped on quit")),
+          Effect.catch((error) => Effect.logError("failed to stop v2 CLI background service on quit", { error })),
+        )
       }),
-    )
+      // Only a failed restart handoff resumes the app; its windows then reconnect, which starts the service again.
+      resume: Effect.void,
+    })
+
+    yield* Effect.addFinalizer(() => Effect.sync(remove))
+
+    return Service.of({ connection: machine.connection, reconnect: machine.reconnect })
   }),
 )
 
@@ -101,28 +126,37 @@ const prepare = Effect.fn("BackgroundService.prepare")(function* (mode: Backgrou
   yield* Effect.logInfo("starting v2 background service")
   const path = yield* Path.Path
   const desktopCli = yield* DesktopCli.Service
-  const reuse = !app.isPackaged && process.env.OPENCODE_DESKTOP_REUSE_SERVER === "1"
+  const reuse = reusingServer()
   const isolated = !app.isPackaged && !reuse && process.env.OPENCODE_DESKTOP_ISOLATED_SERVER === "1"
   const cli = yield* desktopCli.resolve
   const version = reuse ? undefined : serviceVersion({ channel: CHANNEL, isolated, mode, version: cli.version })
 
   if (isolated) process.env.XDG_STATE_HOME = app.getPath("userData")
   const client = yield* Effect.promise(() => import("@opencode/client/service"))
-
-  const reuseFile = reuse ? process.env.OPENCODE_DESKTOP_REUSE_SERVICE_FILE || undefined : undefined
-
-  const file = reuse
-    ? reuseFile
-    : process.env.OPENCODE_DESKTOP_SERVER_CHANNEL === "local"
-      ? path.join(
-          process.env.XDG_STATE_HOME ?? path.join(app.getPath("home"), ".local", "state"),
-          "opencode",
-          "service-local.json",
-        )
-      : undefined
+  const file = reuse ? reusedRegistrationFile() : registrationFile(path)
 
   return { cli, client, file, isolated, version }
 })
+
+// A development build that reuses a running server (`OPENCODE_DESKTOP_REUSE_SERVER`) did not start it.
+function reusingServer() {
+  return !app.isPackaged && process.env.OPENCODE_DESKTOP_REUSE_SERVER === "1"
+}
+
+function reusedRegistrationFile() {
+  return process.env.OPENCODE_DESKTOP_REUSE_SERVICE_FILE || undefined
+}
+
+// The registration file of the service this app runs; undefined means the client's default file.
+function registrationFile(path: Path.Path) {
+  if (process.env.OPENCODE_DESKTOP_SERVER_CHANNEL !== "local") return undefined
+
+  return path.join(
+    process.env.XDG_STATE_HOME ?? path.join(app.getPath("home"), ".local", "state"),
+    "opencode",
+    "service-local.json",
+  )
+}
 
 const adopt = Effect.fn("BackgroundService.adopt")(function* (
   setup: Effect.Success<ReturnType<typeof prepare>>,
