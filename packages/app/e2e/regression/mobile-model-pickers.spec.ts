@@ -283,9 +283,7 @@ test("model dialog shows a summary and only the default variant for models witho
   await expect(flyout.getByRole("menuitemradio")).toHaveText(["Default"])
 })
 
-test("model dialog toggles a favorite from the keyboard and leads with favorite and recent models", async ({
-  page,
-}) => {
+test("model dialog toggles a favorite from the keyboard and leads with favorite models", async ({ page }) => {
   const { model, dialog } = await openDesktopPicker(page, "ltr")
   const sections = dialog.locator('[data-slot="search-list-header"]')
   const search = dialog.getByRole("combobox", { name: "Search models", exact: true })
@@ -301,7 +299,7 @@ test("model dialog toggles a favorite from the keyboard and leads with favorite 
   await expect(model).toHaveText("Mobile Model B")
 
   await model.click()
-  await expect(sections).toHaveText(["Favorites", "Recent", "OpenCode"])
+  await expect(sections).toHaveText(["Favorites", "OpenCode"])
   await expect(dialog.locator('[data-option-key="opencode:mobile-b"]')).toHaveAttribute("aria-current", "true")
   await search.fill("Mobile")
   await expect(sections).toHaveText(["OpenCode"])
@@ -313,7 +311,7 @@ test("model dialog toggles a favorite from the keyboard and leads with favorite 
   await expect(dialog.locator('[data-option-key="opencode:mobile-c"]')).toHaveAttribute("data-active", "")
   await expect(dialog.locator('[data-option-key="opencode:mobile-b"]')).not.toHaveAttribute("data-active")
   await search.press("ControlOrMeta+f")
-  await expect(sections).toHaveText(["Recent", "OpenCode"])
+  await expect(sections).toHaveText(["OpenCode"])
   await expect(dialog.locator('[data-option-key="opencode:mobile-c"]')).toHaveAttribute("data-active", "")
 })
 
