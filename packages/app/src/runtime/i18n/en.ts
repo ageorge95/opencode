@@ -166,7 +166,6 @@ export const dict = {
   "dialog.model.chatgptPlan": "Using ChatGPT plan",
   "dialog.model.chatgptManageUsage": "Manage usage",
   "dialog.model.favorites": "Favorites",
-  "dialog.model.recent": "Recent",
   "dialog.model.hint.navigate": "Navigate",
   "dialog.model.hint.select": "Select",
   "dialog.model.favorite": "Favorite",
