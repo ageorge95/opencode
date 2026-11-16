@@ -517,10 +517,6 @@ function createModelSelectorController(input: {
     },
     variant: (item: ModelItem) => model.variant.current({ providerID: item.provider.id, modelID: item.id }),
     favorites: () => model.favorite.list().filter((item) => !input.provider() || item.provider.id === input.provider()),
-    recent: () =>
-      model
-        .recent()
-        .flatMap((item) => (item && (!input.provider() || item.provider.id === input.provider()) ? [item] : [])),
     toggleFavorite: (item: ModelItem) => model.favorite.toggle({ providerID: item.provider.id, modelID: item.id }),
   }
 }
@@ -558,24 +554,20 @@ function createProviderLabels(all: () => ModelItem[]) {
 
 type ModelGroup = { category: string; items: ModelItem[]; title?: string }
 
-// Favorites and recent models lead the list until a search narrows it. As in the TUI, they then leave their provider
-// group, so no model is listed twice.
+// Favorites lead the list until a search narrows it. As in the TUI, they then leave their provider group, so no model
+// is listed twice.
 function withSections(input: {
   groups: ModelGroup[]
   favorites: ModelItem[]
-  recent: ModelItem[]
-  titles: { favorite: string; recent: string }
+  titles: { favorite: string }
 }): ModelGroup[] {
   const favorites = new Set(input.favorites.map(modelKey))
-
-  const recent = input.recent.filter((item) => !favorites.has(modelKey(item)))
-  const listed = new Set([...favorites, ...recent.map(modelKey)])
+  const listed = new Set(favorites)
 
   return [
     ...(input.favorites.length > 0
       ? [{ category: "favorite", title: input.titles.favorite, items: input.favorites }]
       : []),
-    ...(recent.length > 0 ? [{ category: "recent", title: input.titles.recent, items: recent }] : []),
     ...input.groups.flatMap((group) => {
       const items = group.items.filter((item) => !listed.has(modelKey(item)))
 
@@ -659,8 +651,7 @@ export function DialogSelectModel(props: { provider?: string; model?: ModelState
     return withSections({
       groups: providers,
       favorites: controller.favorites(),
-      recent: controller.recent(),
-      titles: { favorite: language.t("dialog.model.favorites"), recent: language.t("dialog.model.recent") },
+      titles: { favorite: language.t("dialog.model.favorites") },
     })
   })
 
