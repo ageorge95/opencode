@@ -289,17 +289,22 @@ export function createComposerEditor(input: {
   }
 
   createEffect(() => {
-    if (state.popover.type !== "context") return untrack(() => dispatchMentionSearch(MENTION_CONTEXT_CLOSED))
-    const query = state.popover.query
-    untrack(() => dispatchMentionSearch({ type: "context.changed", query, hasSessions: !!input.requestSessionSearch }))
+    const popover = state.popover
+    if (popover.type !== "context" && popover.type !== "path")
+      return untrack(() => dispatchMentionSearch(MENTION_CONTEXT_CLOSED))
+    untrack(() =>
+      dispatchMentionSearch({ type: "context.changed", query: popover.query, hasSessions: !!input.requestSessionSearch }),
+    )
   })
   onCleanup(() => dispatchMentionSearch({ type: "disposed" }))
 
   const contextOpen = createMemo(() => state.popover.type === "context")
+  const pathOpen = createMemo(() => state.popover.type === "path")
   const fileRows = createMemo(() => selectMentionFiles(mentionSearch()))
 
   const contextList = useFilteredList<ComposerSuggestion>({
     items: (query) => {
+      if (pathOpen()) return [...fileRows()]
       if (!contextOpen()) return []
 
       const sessions = input.searchSessions?.(query) ?? []
@@ -345,7 +350,7 @@ export function createComposerEditor(input: {
     filterKeys: ["trigger", "title"],
   })
 
-  const list = () => (state.popover.type === "context" ? contextList : commandList)
+  const list = () => (state.popover.type === "context" || state.popover.type === "path" ? contextList : commandList)
 
   const history = createMemo<ComposerSuggestion[]>(() =>
     (input.history?.entries(mode()) ?? []).map((entry, index) => ({
@@ -359,7 +364,7 @@ export function createComposerEditor(input: {
 
   // Files from the previous query stay listed while the next search runs, but the keyboard can't highlight or pick them.
   const stale = (item: ComposerSuggestion) =>
-    state.popover.type === "context" &&
+    (state.popover.type === "context" || state.popover.type === "path") &&
     item.kind === "file" &&
     !item.recent &&
     isMentionFileStale(mentionSearch(), state.popover.query)
@@ -424,6 +429,12 @@ export function createComposerEditor(input: {
 
     if (command.type === "mention.add") {
       if (command.item.mention) draft.addMention(command.item.mention, command.range)
+
+      return
+    }
+
+    if (command.type === "draft.addPath") {
+      draft.addPath(command.item)
 
       return
     }

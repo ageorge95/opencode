@@ -205,6 +205,26 @@ test.each<{
     command: { type: "mention.add", item: file },
   },
   {
+    name: "opens path completion when # is typed",
+    event: { type: "input.changed", value: "#sr", persist: false },
+    draft: persisted("#sr", 3),
+    popover: { type: "path", query: "sr" },
+  },
+  {
+    name: "keeps typing in an open path completion",
+    from: { popover: { type: "path", query: "s" } },
+    event: { type: "input.changed", value: "#sr", persist: false },
+    draft: persisted("#sr", 3),
+    popover: { type: "path", query: "sr" },
+  },
+  {
+    name: "inserts selected paths as plain text",
+    from: { popover: { type: "path", query: "index" } },
+    event: { type: "popover.select", item: file },
+    draft: persisted("src/index.ts"),
+    command: { type: "draft.addPath", item: file },
+  },
+  {
     name: "loops active popover items with arrow keys",
     from: { popover: { type: "context", query: "", activeID: "second" } },
     event: key("ArrowDown", { ids: ["first", "second"] }),

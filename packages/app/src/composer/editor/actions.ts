@@ -7,6 +7,7 @@ import type {
   ComposerSessionPart,
   ComposerPersistedState,
   ComposerPrompt,
+  ComposerSuggestion,
 } from "../types"
 import { isAttachment, promptLength } from "../prompt-parts"
 
@@ -92,6 +93,23 @@ export function createComposerEditorActions(input: ComposerStateStoreInput) {
       setStore()("prompt", insertMention(prompt, start, end, mention))
       setStore()("cursor", start + mention.content.length + 1)
     },
+    // "#" selection inserts the path as plain text, so the agent reads it with tools instead of attaching it
+    addPath(item: ComposerSuggestion) {
+      const prompt = withOffsets(store().prompt)
+      const length = promptLength(prompt)
+      const end = Math.min(store().cursor ?? length, length)
+
+      const part = prompt.find(
+        (item): item is Extract<ComposerPrompt[number], { type: "text" }> =>
+          item.type === "text" && end >= item.start && end <= item.end,
+      )
+
+      const index = part ? part.content.slice(0, end - part.start).lastIndexOf("#") : -1
+      const start = part && index >= 0 ? part.start + index : end
+      const content = item.path ?? item.label
+      setStore()("prompt", insertTextAt(prompt, start, end, content))
+      setStore()("cursor", start + content.length)
+    },
     removeAttachment(id: string) {
       setStore()("prompt", (parts) => parts.filter((part) => !isAttachment(part) || part.id !== id))
     },
@@ -174,6 +192,40 @@ function insertMention(
   })
 
   if (!inserted && start === end) parts.push(mention, { type: "text", content: " ", start: 0, end: 0 })
+
+  return withOffsets(parts)
+}
+
+function insertTextAt(prompt: ComposerPrompt, start: number, end: number, content: string): ComposerPrompt {
+  let position = 0
+  let inserted = false
+
+  const parts = prompt.flatMap<ComposerPrompt[number]>((part) => {
+    if (isAttachment(part)) return [part]
+    const partStart = position
+    position += part.content.length
+
+    if (inserted) return [part]
+
+    if (part.type === "text" && start >= partStart && end <= position) {
+      inserted = true
+      const before = part.content.slice(0, start - partStart)
+      const after = part.content.slice(end - partStart)
+
+      return [
+        ...(before ? [{ type: "text" as const, content: before, start: 0, end: 0 }] : []),
+        { type: "text" as const, content, start: 0, end: 0 },
+        ...(after ? [{ type: "text" as const, content: after, start: 0, end: 0 }] : []),
+      ]
+    }
+
+    if (start !== end || start > partStart) return [part]
+    inserted = true
+
+    return [{ type: "text" as const, content, start: 0, end: 0 }, part]
+  })
+
+  if (!inserted && start === end) parts.push({ type: "text" as const, content, start: 0, end: 0 })
 
   return withOffsets(parts)
 }

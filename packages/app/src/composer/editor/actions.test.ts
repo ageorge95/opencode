@@ -109,6 +109,24 @@ describe("Composer store", () => {
     ])
   })
 
+  test("addPath inserts the selected path as plain text, replacing the typed #query", () => {
+    const prompt = createComposerEditorActions(
+      createStore<ComposerPersistedState>({
+        prompt: [{ type: "text", content: "check #sr", start: 0, end: 9 }],
+        cursor: 9,
+        context: { items: [] },
+      }),
+    )
+
+    prompt.addPath({ id: "file:src/app.ts", kind: "file", label: "app.ts", path: "src/app.ts" })
+
+    expect(prompt.state.prompt).toEqual([
+      { type: "text", content: "check ", start: 0, end: 6 },
+      { type: "text", content: "src/app.ts", start: 6, end: 16 },
+    ])
+    expect(prompt.state.cursor).toBe(16)
+  })
+
   test("prepends a skill mention to an attachment-only draft without flattening it", () => {
     const prompt = createPromptStore()
     prompt.setPrompt([{ type: "file", path: "one", content: "@one", start: 0, end: 4 }], 4)
