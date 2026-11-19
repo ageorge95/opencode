@@ -35,7 +35,7 @@ import { Locale } from "../../util/locale"
 import type { PromptInfo, PromptPartRef } from "../../prompt/history"
 import { useFrecency } from "../../prompt/frecency"
 import { Keymap, type KeymapCommand } from "../../context/keymap"
-import { mentionTriggerIndex, slashTriggerIndex } from "../../prompt/display"
+import { hashTriggerIndex, mentionTriggerIndex, slashTriggerIndex } from "../../prompt/display"
 import type { FileSystemEntry } from "@opencode/client"
 import { Skill } from "@opencode/schema/skill"
 import { stringWidth } from "../../util/string-width"
@@ -45,7 +45,7 @@ import { directoryAutocomplete, slashArgumentAutocomplete } from "../../prompt/d
 
 export type AutocompleteRef = {
   onInput: (value: string) => void
-  visible: false | "reference" | "command" | "directory"
+  visible: false | "reference" | "command" | "directory" | "path"
   completeQueueableCommand: () => boolean
 }
 
@@ -337,6 +337,12 @@ export function Autocomplete(props: {
     input.insertText(directory)
   }
 
+  // "#" selection: the path replaces the "#query" text, without an attachment part
+  function insertPath(option: AutocompleteOption) {
+    const value = (option.value ?? option.display).trimEnd()
+    insertDirectory(option.isDirectory && !value.endsWith("/") ? `${value}/` : value)
+  }
+
   const [files] = createResource(
     () => ({ query: search(), location: location.current, visible: store.visible }),
     async (input, info): Promise<AutocompleteResults> => {
@@ -554,13 +560,20 @@ export function Autocomplete(props: {
 
     // Files come from fff already fuzzy ranked and filtered
     // it shouldn't be additionally sorted by fuzzysort as it will loose the results
-    const fileOptions: AutocompleteOption[] = store.visible === "reference" ? fileSearch.options : []
+    const fileOptions: AutocompleteOption[] =
+      store.visible === "path"
+        ? fileSearch.options.map((option) => ({ ...option, onSelect: () => insertPath(option) }))
+        : store.visible === "reference"
+          ? fileSearch.options
+          : []
     const nonFileOptions: AutocompleteOption[] =
       store.visible === "reference"
         ? [...skillOptions(), ...referenceAliasesValue, ...agentsValue]
-        : store.index === 0
-          ? [...commandsValue]
-          : []
+        : store.visible === "path"
+          ? []
+          : store.index === 0
+            ? [...commandsValue]
+            : []
 
     if (!searchValue) {
       return [...nonFileOptions, ...fileOptions]
@@ -733,7 +746,7 @@ export function Autocomplete(props: {
         group: "Autocomplete",
         run() {
           const selected = options()[store.selected]
-          if (selected?.isDirectory) {
+          if (store.visible !== "path" && selected?.isDirectory) {
             expandDirectory()
             return
           }
@@ -838,6 +851,14 @@ export function Autocomplete(props: {
         if (idx !== undefined) {
           show("reference")
           setStore("index", idx)
+          return
+        }
+
+        // Check for "#" trigger - like "@", but the selection inserts plain path text
+        const hash = hashTriggerIndex(beforeCursor, renderer.widthMethod)
+        if (hash !== undefined) {
+          show("path")
+          setStore("index", hash)
         }
       },
     })
@@ -860,6 +881,11 @@ export function Autocomplete(props: {
       if (files.loading) return "Searching…"
       if (fileSearch.failed) return "Could not search directories. Keep typing to try again."
       return "No matching directories"
+    }
+    if (store.visible === "path") {
+      if (files.loading) return "Searching…"
+      if (fileSearch.failed) return "Could not search files. Keep typing to try again."
+      return "No matching files or folders"
     }
     if (files.loading) return "Searching…"
     if (fileSearch.failed) return "Could not search files. Keep typing to try again."

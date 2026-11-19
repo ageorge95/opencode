@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test"
 import { measureEditText, TextareaRenderable } from "@opentui/core"
 import { createTestRenderer } from "@opentui/core/testing"
-import { mentionTriggerIndex, promptOffsetIndex, slashTriggerIndex } from "../../src/prompt/display"
+import { hashTriggerIndex, mentionTriggerIndex, promptOffsetIndex, slashTriggerIndex } from "../../src/prompt/display"
 
 // A real textarea checks the helpers against the offsets that the prompt editor shows.
 const setup = await createTestRenderer({ width: 40, height: 4 })
@@ -16,6 +16,7 @@ const samples = ["\f", "\0", "\x1b", "\x7f", "\x85", "\t", "中文", "e\u0301", 
 describe("prompt display", () => {
   test.each([
     ["@", mentionTriggerIndex],
+    ["#", hashTriggerIndex],
     ["/", slashTriggerIndex],
   ] as const)("places the %s trigger where the editor shows it", (trigger, find) => {
     const texts = [

@@ -14,6 +14,8 @@ export type ComposerPopoverState =
   // Plain arrows recall history entries into the draft, with no list open.
   | { readonly type: "browsing"; readonly index: number; readonly saved: ComposerSavedDraft }
   | { readonly type: "context"; readonly query: string; readonly activeID?: string; readonly chosen?: boolean }
+  // "#" mentions the path itself as text, so the agent reads it with tools instead of attaching the file.
+  | { readonly type: "path"; readonly query: string; readonly activeID?: string; readonly chosen?: boolean }
   | { readonly type: "command-inline"; readonly query: string; readonly activeID?: string; readonly chosen?: boolean }
   | { readonly type: "command-menu"; readonly query: string; readonly activeID?: string; readonly chosen?: boolean }
   | {
@@ -85,7 +87,8 @@ export type ComposerInteractionCommand =
   | { readonly type: "draft.addText"; readonly value: string }
   | { readonly type: "draft.removeTextBefore"; readonly value: string }
   | { readonly type: "mention.add"; readonly item: ComposerSuggestion; readonly range?: { start: number; end: number } }
-  | { readonly type: "popover.filter"; readonly popover: "command" | "context"; readonly query: string }
+  | { readonly type: "draft.addPath"; readonly item: ComposerSuggestion }
+  | { readonly type: "popover.filter"; readonly popover: "command" | "context" | "path"; readonly query: string }
   | { readonly type: "suggestion.select"; readonly id: string }
   | { readonly type: "focus.editor" }
   | { readonly type: "focus.command-search" }
@@ -227,6 +230,19 @@ function inputChanged(
     ])
   }
 
+  const hash = value.includes("#")
+    ? value.slice(0, persisted.cursor ?? value.length).match(/(?:^|\s)#([^\s#]*)$/)
+    : null
+
+  if (hash) {
+    const query = hash[1] ?? ""
+
+    return changed({ ...state, popover: { type: "path", query }, focus: "editor" }, [
+      ...(persist ? [{ type: "draft.setText" as const, value }] : []),
+      { type: "popover.filter", popover: "path", query },
+    ])
+  }
+
   const command = value.startsWith("/") ? value.match(/^\/(\S*)$/) : null
 
   if (command) {
@@ -360,7 +376,7 @@ function queryChanged(state: ComposerInteractionState, query: string): ComposerE
   if (state.popover.type === "history")
     return changed({ ...state, popover: { ...state.popover, query, activeID: undefined, chosen: undefined } })
 
-  const popover = state.popover.type === "context" ? "context" : "command"
+  const popover = state.popover.type === "context" || state.popover.type === "path" ? state.popover.type : "command"
 
   return changed({ ...state, popover: { ...state.popover, query, activeID: undefined, chosen: undefined } }, [
     { type: "popover.filter", popover, query },
@@ -423,6 +439,8 @@ function suggestionSelected(
             : `${item.label} `
           : replaceTrigger(current, "/", `${item.label} `),
     })
+  } else if (state.popover.type === "path") {
+    commands.push({ type: "draft.addPath", item })
   } else {
     commands.push({
       type: "mention.add",

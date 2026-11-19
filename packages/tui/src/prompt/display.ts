@@ -20,7 +20,15 @@ export function promptOffsetIndex(value: string, offset: number, widthMethod: Wi
 }
 
 export function mentionTriggerIndex(text: string, widthMethod: WidthMethod) {
-  const index = text.lastIndexOf("@")
+  return triggerIndex(text, "@", widthMethod)
+}
+
+export function hashTriggerIndex(text: string, widthMethod: WidthMethod) {
+  return triggerIndex(text, "#", widthMethod)
+}
+
+function triggerIndex(text: string, trigger: "@" | "#", widthMethod: WidthMethod) {
+  const index = text.lastIndexOf(trigger)
   if (index === -1) return
 
   const before = index === 0 ? undefined : text[index - 1]
